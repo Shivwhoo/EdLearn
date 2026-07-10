@@ -1,0 +1,93 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  passwordHash  String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  profile       UserProfile?
+  roadmaps      Roadmap[]
+  progress      Progress[]
+  credits       Int           @default(15)
+  subscription  Subscription?
+}
+
+model UserProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName      String?
+  careerGoal    String?
+  currentSkills String[]
+  availableTime Int      // in minutes
+  difficulty    String   @default("Intermediate") // Beginner, Intermediate, Advanced
+}
+
+model Roadmap {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  deadline    DateTime
+  isAchievable Boolean  @default(true)
+  days        Day[]
+  createdAt   DateTime @default(now())
+}
+
+model Day {
+  id        String   @id @default(uuid())
+  roadmapId String
+  roadmap   Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  dayNumber Int
+  title     String
+  duration  Int      // in minutes
+  topics    Topic[]
+}
+
+model Topic {
+  id          String     @id @default(uuid())
+  dayId       String
+  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  title       String
+  mode        Int        // 1 to 6
+  notesHtml   String     @db.Text
+  audioUrl    String?
+  audioTiming Json?      // For word highlighting word/time map
+  citations   Citation[]
+  completed   Boolean    @default(false)
+}
+
+model Citation {
+  id        String   @id @default(uuid())
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  label     String
+  rawText   String   @db.Text
+  sourceUrl String?
+}
+
+model Progress {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId     String
+  score       Int      @default(0)
+  completedAt DateTime @default(now())
+}
+
+model Subscription {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeId   String   @unique
+  status     String
+  tier       String   @default("FREE")
+  expiresAt  DateTime
+}
