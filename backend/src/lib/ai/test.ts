@@ -1,3 +1,5 @@
+import '../../loadEnv';
+
 import { aiService } from './aiService';
 
 async function testAI() {

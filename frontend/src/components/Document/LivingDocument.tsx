@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import Mermaid from './Mermaid';
 
 interface LivingDocumentProps {
   onTriggerGenerate: () => void;
@@ -18,6 +19,9 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
     focusMode,
     setPlaying,
     setActiveSentenceIndex,
+    notesHistory,
+    activeVersionId,
+    setActiveVersion,
   } = useWorkspaceStore();
 
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -109,17 +113,34 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
   }
 
   if (!generatedContent) {
+    // Check if this day already has content in the roadmap data (loading in progress)
+    const dayHasExistingContent = (currentDay as any)?.topics?.length > 0;
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0F1117]">
-        <BookOpen className="h-16 w-16 text-slate-700 mb-4 animate-pulse" />
-        <h2 className="text-xl font-bold text-slate-200 mb-2">No Study Notes Loaded</h2>
-        <p className="text-slate-500 max-w-sm mb-6">Select a day from your roadmap checklist and click the button to generate premium learning notes.</p>
-        <button
-          onClick={onTriggerGenerate}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-lg hover:shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
-        >
-          Generate Study Notes
-        </button>
+        {dayHasExistingContent ? (
+          // Content exists in DB — fetchNotesHistory is loading it
+          <>
+            <RefreshCw className="h-12 w-12 text-indigo-500 mb-4 animate-spin" />
+            <h2 className="text-lg font-bold text-slate-200 mb-2">Loading Your Study Notes...</h2>
+            <p className="text-slate-500 max-w-sm text-sm">Restoring your previously generated content for this day.</p>
+          </>
+        ) : (
+          // No content ever generated for this day
+          <>
+            <BookOpen className="h-16 w-16 text-slate-700 mb-4 animate-pulse" />
+            <h2 className="text-xl font-bold text-slate-200 mb-2">Ready to Study Day {currentDay?.dayNumber}?</h2>
+            <p className="text-slate-500 max-w-sm mb-6">
+              No notes generated yet for this day. Click below to generate premium AI-powered study content — it will be saved and reloaded instantly next time.
+            </p>
+            <button
+              onClick={onTriggerGenerate}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-lg hover:shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+            >
+              Generate Study Notes
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -143,6 +164,36 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
             <h1 className="text-3xl font-black text-slate-100 mt-3 leading-tight tracking-tight">
               {generatedContent.title}
             </h1>
+          </div>
+
+          {/* Version Switcher & Regeneration actions */}
+          <div className="flex items-center space-x-2.5 self-end md:self-center">
+            {notesHistory.length > 0 && (
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Version:</span>
+                <select
+                  value={activeVersionId || ''}
+                  onChange={(e) => setActiveVersion(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 outline-none focus:border-indigo-500 transition-colors"
+                >
+                  {notesHistory.map((item, idx) => (
+                    <option key={item.id} value={item.id}>
+                      V{notesHistory.length - idx} ({new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            <button
+              onClick={onTriggerGenerate}
+              disabled={isLoadingContent}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/30 hover:bg-indigo-600 text-indigo-400 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              title="Generate a fresh notes version via RAG"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoadingContent ? 'animate-spin' : ''}`} />
+              <span>Re-generate</span>
+            </button>
           </div>
         </div>
 
@@ -175,6 +226,11 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
               ))}
             </div>
           </div>
+        )}
+
+        {/* Visual Concept Map / Diagram */}
+        {generatedContent.visualDiagram && (
+          <Mermaid chart={generatedContent.visualDiagram} />
         )}
 
         {/* Core Lesson Content Blocks */}

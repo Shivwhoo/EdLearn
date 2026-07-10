@@ -99,7 +99,9 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
     };
 
     utterance.onerror = (e) => {
-      console.error('Speech synthesis error:', e);
+      if (e.error !== 'interrupted' && e.error !== 'canceled') {
+        console.error('Speech synthesis error:', e);
+      }
       setPlaying(false);
     };
 

@@ -13,6 +13,7 @@ import axios from 'axios';
 export default function WorkspacePage() {
   const router = useRouter();
   const {
+    token,
     roadmap,
     currentDay,
     activeMode,
@@ -21,33 +22,61 @@ export default function WorkspacePage() {
     setGeneratedContent,
     setLoadingContent,
     isLoadingContent,
+    fetchNotesHistory,
+    fetchCurrentUser,
+    restoringSession,
   } = useWorkspaceStore();
 
+  const [isMounted, setIsMounted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const sentencesRef = useRef<string[]>([]);
 
-  // Safety routing back to onboarding if roadmap is not defined
   useEffect(() => {
-    if (!roadmap || !userProfile) {
-      router.push('/');
+    setIsMounted(true);
+  }, []);
+
+  // Always restore session from database on page load
+  useEffect(() => {
+    if (token) {
+      fetchCurrentUser();
     }
-  }, [roadmap, userProfile, router]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Safety routing — only fires after session restoration finishes
+  useEffect(() => {
+    if (isMounted && !restoringSession) {
+      if (!token) {
+        router.push('/login');
+      } else if (!roadmap) {
+        // Only redirect to onboarding if no roadmap exists at all after restore
+        router.push('/onboarding');
+      }
+    }
+  }, [isMounted, restoringSession, token, roadmap, router]);
+
+  // Load history instantly when active day changes
+  useEffect(() => {
+    if (currentDay?.id) {
+      fetchNotesHistory(currentDay.id);
+    }
+  }, [currentDay?.id, fetchNotesHistory]);
 
   // Fetch or trigger content generation when day or mode changes
   const handleGenerateContent = async () => {
-    if (!currentDay || !userProfile) return;
+    if (!currentDay) return;
     setLoadingContent(true);
     setErrorMsg('');
     try {
       const response = await axios.post('/api/generate', {
         topic: currentDay.title,
         mode: activeMode,
-        difficulty: userProfile.difficulty,
+        difficulty: userProfile?.difficulty || 'Intermediate',
         dayId: currentDay.id,
       });
 
       if (response.data?.success) {
-        setGeneratedContent(response.data.data);
+        // Refresh version history stack, which will automatically load this newly generated version
+        await fetchNotesHistory(currentDay.id);
       } else {
         setErrorMsg('Error generating content. Please check API Key status.');
       }
@@ -59,7 +88,7 @@ export default function WorkspacePage() {
     }
   };
 
-  if (!roadmap || !currentDay) {
+  if (!isMounted || restoringSession || !roadmap || !currentDay) {
     return (
       <div className="min-h-screen bg-[#0F1117] flex items-center justify-center text-slate-400">
         <RefreshCw className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
@@ -94,8 +123,9 @@ export default function WorkspacePage() {
             onClick={handleGenerateContent}
             disabled={isLoadingContent}
             className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded text-xs font-bold transition-all cursor-pointer"
+            title="Generate a fresh new version of the study notes for this day"
           >
-            {isLoadingContent ? 'Synchronizing...' : 'Reload AI Lesson'}
+            {isLoadingContent ? 'Generating...' : '+ New Version'}
           </button>
         </div>
       </header>

@@ -62,6 +62,7 @@ model Topic {
   audioTiming Json?      // For word highlighting word/time map
   citations   Citation[]
   completed   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
 }
 
 model Citation {

@@ -1,0 +1,278 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { 
+  GraduationCap, 
+  ArrowRight, 
+  BookOpen, 
+  Calendar, 
+  History, 
+  PlusCircle, 
+  ChevronRight, 
+  RefreshCw,
+  FolderOpen
+} from 'lucide-react';
+import axios from 'axios';
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const { token, user, setRoadmap, selectDay } = useWorkspaceStore();
+
+  const [isMounted, setIsMounted] = useState(false);
+  const [roadmaps, setRoadmaps] = useState<any[]>([]);
+  const [historyNotes, setHistoryNotes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Protected route check
+  useEffect(() => {
+    if (isMounted && !token) {
+      router.push('/login');
+    }
+  }, [isMounted, token, router]);
+
+  // Fetch summary history logs
+  useEffect(() => {
+    if (!token || !isMounted) return;
+
+    const fetchSummary = async () => {
+      setIsLoading(true);
+      setErrorMsg('');
+      try {
+        const res = await axios.get('/api/dashboard/summary');
+        if (res.data?.success) {
+          setRoadmaps(res.data.roadmaps || []);
+          setHistoryNotes(res.data.topics || []);
+        } else {
+          setErrorMsg('Failed to load user progress details.');
+        }
+      } catch (err: any) {
+        console.error('Failed to load dashboard summary:', err);
+        setErrorMsg(err.response?.data?.error || 'Could not communicate with backend database.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSummary();
+  }, [token, isMounted]);
+
+  // Open an active roadmap in the workspace
+  const handleOpenRoadmap = async (targetRoadmap: any) => {
+    try {
+      await axios.post('/api/user/active-roadmap', { roadmapId: targetRoadmap.id });
+    } catch (err) {
+      console.warn('Failed to persist active roadmap in cache:', err);
+    }
+    setRoadmap(targetRoadmap);
+    router.push('/workspace');
+  };
+
+  // Open a specific note version history from list
+  const handleOpenHistoricalNote = async (noteItem: any) => {
+    const parentRoadmap = roadmaps.find(
+      (r) => r.id === noteItem.day?.roadmap?.id
+    );
+    if (!parentRoadmap) return;
+
+    const targetDay = parentRoadmap.days.find(
+      (d: any) => d.id === noteItem.day?.id
+    );
+    if (!targetDay) return;
+
+    try {
+      await axios.post('/api/user/active-roadmap', { roadmapId: parentRoadmap.id });
+    } catch (err) {
+      console.warn('Failed to persist active roadmap in cache:', err);
+    }
+
+    setRoadmap(parentRoadmap);
+    selectDay(targetDay);
+    
+    router.push('/workspace');
+  };
+
+  if (!isMounted || !token) {
+    return (
+      <div className="min-h-screen bg-[#0F1117] flex items-center justify-center text-slate-400">
+        <RefreshCw className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
+        <span>Verifying user context...</span>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 p-6 md:p-12 pt-24">
+      {/* Visual background accents */}
+      <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl" />
+
+      <div className="max-w-7xl mx-auto space-y-8 relative z-10">
+        
+        {/* User Welcome Banner */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800/80 pb-6 gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">
+              Study Dashboard
+            </h1>
+            <p className="text-slate-400 text-sm mt-1.5">
+              Welcome back, <span className="text-indigo-400 font-semibold">{user?.fullName || 'Student'}</span>! Resume your active goals or start a new subject.
+            </p>
+          </div>
+
+          <button
+            onClick={() => router.push('/onboarding')}
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 active:scale-95 cursor-pointer self-start md:self-center"
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span>New Learning Path</span>
+          </button>
+        </div>
+
+        {errorMsg && (
+          <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-300 text-xs">
+            {errorMsg}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-slate-500 space-y-3">
+            <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+            <span className="text-xs">Fetching learning summaries...</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Left/Center Panel - Active roadmaps list */}
+            <div className="lg:col-span-2 space-y-6">
+              <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-indigo-400" />
+                <span>Active Learning Paths</span>
+              </h2>
+
+              {roadmaps.length === 0 ? (
+                <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-2xl text-center space-y-4">
+                  <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-full inline-block text-indigo-400">
+                    <GraduationCap className="h-8 w-8" />
+                  </div>
+                  <h3 className="text-slate-350 font-bold">No roadmaps initialized</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    You haven't initialized an AI-generated learning pathway yet. Click below to specify your topic target and durations!
+                  </p>
+                  <button
+                    onClick={() => router.push('/onboarding')}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+                  >
+                    Set Career Goal
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {roadmaps.map((r) => {
+                    // Compute basic progress calculations (days completed)
+                    const totalDays = r.days.length;
+                    const generatedNotesCount = r.days.filter((d: any) => d.topics.length > 0).length;
+                    const percentage = totalDays > 0 ? Math.round((generatedNotesCount / totalDays) * 100) : 0;
+
+                    return (
+                      <div 
+                        key={r.id} 
+                        className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 hover:border-indigo-500/30 transition-colors flex flex-col justify-between gap-6"
+                      >
+                        <div className="space-y-2">
+                          <h3 className="text-md font-bold text-slate-200">{r.title}</h3>
+                          <div className="flex items-center space-x-4 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              Deadline: {new Date(r.deadline).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {totalDays} Days Structured
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress slider bar */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-semibold">
+                            <span className="text-slate-500">Topics Studied</span>
+                            <span className="text-indigo-400">{percentage}% ({generatedNotesCount}/{totalDays} Days)</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5">
+                            <div 
+                              className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-1.5 rounded-full" 
+                              style={{ width: `${Math.max(percentage, 5)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end border-t border-slate-800/40 pt-4">
+                          <button
+                            onClick={() => handleOpenRoadmap(r)}
+                            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-bold transition-all cursor-pointer group"
+                          >
+                            <span>Open Study Workspace</span>
+                            <ChevronRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Right Panel - History of generated notes */}
+            <div className="space-y-6">
+              <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+                <History className="h-5 w-5 text-amber-500" />
+                <span>Study Guide History</span>
+              </h2>
+
+              {historyNotes.length === 0 ? (
+                <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl text-center text-slate-555 py-12 text-xs">
+                  No note runs generated yet. When you compile study notes, they will appear here.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {historyNotes.map((n) => (
+                    <div 
+                      key={n.id} 
+                      className="bg-slate-900/50 border border-slate-850 hover:border-slate-800 rounded-xl p-4.5 hover:bg-slate-900/90 transition-all flex justify-between items-center gap-4 group"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <h4 className="text-xs font-bold text-slate-300 truncate">{n.title}</h4>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          {n.day?.roadmap?.title || 'Custom Path'} • Day {n.day?.dayNumber}
+                        </p>
+                        <p className="text-[9px] text-slate-650">
+                          Generated: {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleOpenHistoricalNote(n)}
+                        className="p-2 bg-indigo-600/10 border border-indigo-500/20 group-hover:bg-indigo-600 group-hover:border-indigo-600 text-indigo-400 group-hover:text-white rounded-lg transition-all cursor-pointer"
+                        title="Open this lesson notes version"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

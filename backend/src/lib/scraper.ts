@@ -12,10 +12,15 @@ export interface ScrapedContext {
  */
 async function searchWikipedia(query: string): Promise<ScrapedContext[]> {
   try {
+    const headers = {
+      headers: {
+        'User-Agent': 'EdLearn/1.0 (contact@edlearn.edu; Academic RAG Research Engine)',
+      }
+    };
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
       query
     )}&format=json&origin=*`;
-    const searchResponse = await axios.get(searchUrl);
+    const searchResponse = await axios.get(searchUrl, headers);
     const searchResults = searchResponse.data.query?.search || [];
     
     if (searchResults.length === 0) return [];
@@ -25,7 +30,7 @@ async function searchWikipedia(query: string): Promise<ScrapedContext[]> {
     for (const result of searchResults.slice(0, 2)) {
       const pageId = result.pageid;
       const contentUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&pageids=${pageId}&format=json&origin=*`;
-      const contentResponse = await axios.get(contentUrl);
+      const contentResponse = await axios.get(contentUrl, headers);
       const pageData = contentResponse.data.query?.pages[pageId];
       if (pageData && pageData.extract) {
         results.push({

@@ -3,12 +3,19 @@ import { GroqProvider } from './providers/groqProvider';
 import { GeminiProvider } from './providers/geminiProvider';
 
 export class AIService implements IAIServiceProvider {
-  private activeProvider: IAIServiceProvider;
-  private providerName: string;
+  private activeProvider: IAIServiceProvider | null = null;
+  private providerName: string = 'GROQ';
 
   constructor() {
-    this.providerName = process.env.AI_PROVIDER || 'GROQ';
-    this.activeProvider = this.createProvider(this.providerName);
+    // Provider is resolved lazily upon first query to prevent ES import hoisting issues
+  }
+
+  private getProvider(): IAIServiceProvider {
+    if (!this.activeProvider) {
+      this.providerName = process.env.AI_PROVIDER || 'GROQ';
+      this.activeProvider = this.createProvider(this.providerName);
+    }
+    return this.activeProvider;
   }
 
   private createProvider(providerName: string): IAIServiceProvider {
@@ -41,6 +48,7 @@ export class AIService implements IAIServiceProvider {
    * Returns the name of the currently active provider.
    */
   public getActiveProviderName(): string {
+    this.getProvider();
     return this.providerName;
   }
 
@@ -48,14 +56,14 @@ export class AIService implements IAIServiceProvider {
    * Standard call to generate complete text responses.
    */
   async generate(prompt: string, options?: GenerateOptions): Promise<string> {
-    return this.activeProvider.generate(prompt, options);
+    return this.getProvider().generate(prompt, options);
   }
 
   /**
    * Streaming call to generate and pipe text chunks.
    */
   async generateStream(prompt: string, options?: GenerateOptions): Promise<ReadableStream<string>> {
-    return this.activeProvider.generateStream(prompt, options);
+    return this.getProvider().generateStream(prompt, options);
   }
 }
 
