@@ -1,12 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { GraduationCap, ArrowRight, Sparkles, BookOpen, Brain, MessageSquare, Volume2, ShieldCheck, Zap } from 'lucide-react';
 
 export default function LandingPage() {
   const { token } = useWorkspaceStore();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Use null during SSR / pre-mount so server and client render identically
+  const isLoggedIn = isMounted && !!token;
 
   return (
     <main className="min-h-screen bg-[#0F1117] text-slate-100 flex flex-col justify-between overflow-x-hidden relative pt-24">
@@ -31,10 +39,10 @@ export default function LandingPage() {
 
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-10">
           <Link
-            href={token ? "/workspace" : "/signup"}
+            href={isLoggedIn ? "/workspace" : "/signup"}
             className="w-full sm:w-auto flex items-center justify-center space-x-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-600/20 hover:shadow-indigo-500/30 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
           >
-            <span>{token ? "Go to Workspace" : "Start Learning Free"}</span>
+            <span>{isLoggedIn ? "Go to Workspace" : "Start Learning Free"}</span>
             <ArrowRight className="h-5 w-5" />
           </Link>
           <Link

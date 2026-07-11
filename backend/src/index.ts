@@ -18,8 +18,12 @@ import { redisCache } from './lib/redis';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: '*' }));
-app.use(express.json());
+// C3: Restrict CORS to configured frontend origin only
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+app.use(cors({ origin: allowedOrigin, credentials: true }));
+
+// M3: Limit request body to 1mb to prevent DoS via oversized payloads
+app.use(express.json({ limit: '1mb' }));
 
 // 1. Health Probe
 app.get('/api/health', (req, res) => {
@@ -235,6 +239,43 @@ app.post('/api/user/active-roadmap', authenticate, async (req: express.Request, 
   }
 });
 
+// H6: PATCH /api/profile — Persist user profile data to DB (called from onboarding on submit)
+app.patch('/api/profile', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user!.id;
+    const { fullName, careerGoal, currentSkills, availableTime, difficulty } = req.body;
+
+    const updatedProfile = await db.userProfile.upsert({
+      where: { userId },
+      update: {
+        ...(fullName !== undefined && { fullName }),
+        ...(careerGoal !== undefined && { careerGoal }),
+        ...(currentSkills !== undefined && { currentSkills }),
+        ...(availableTime !== undefined && { availableTime: parseInt(availableTime, 10) }),
+        ...(difficulty !== undefined && { difficulty }),
+      },
+      create: {
+        userId,
+        fullName: fullName || '',
+        careerGoal: careerGoal || '',
+        currentSkills: currentSkills || [],
+        availableTime: parseInt(availableTime, 10) || 45,
+        difficulty: difficulty || 'Intermediate',
+      },
+    });
+
+    // Invalidate dashboard cache so next fetch reflects updated profile
+    await redisCache.deleteCache(`dashboard:${userId}`);
+
+    return res.json({ success: true, profile: updatedProfile });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return res.status(500).json({ error: 'Failed to update user profile.' });
+  }
+});
+
+
+
 // Change Password Route
 app.post('/api/auth/change-password', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
@@ -304,65 +345,55 @@ app.get('/api/topic', authenticate, async (req: express.Request, res: express.Re
 // 1.8. GET /api/dashboard/summary - Get roadmaps and topics history for dashboard overview
 app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    const userId = (req as any).user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized credentials session check' });
+    const userId = (req as AuthenticatedRequest).user!.id;
+
+    // M5: Try Redis cache first (5 min TTL) — invalidated on new roadmap/topic creation
+    const cacheKey = `dashboard:${userId}`;
+    const cached = await redisCache.getCache(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
     }
 
+    // H4: Single query — topics are nested inside days, no second db.topic.findMany needed
     const roadmaps = await db.roadmap.findMany({
-      where: {
-        userId: userId,
-      },
+      where: { userId },
       include: {
         days: {
           include: {
             topics: {
-              select: {
-                id: true,
-                title: true,
-                createdAt: true,
-              },
+              select: { id: true, title: true, mode: true, createdAt: true },
+              orderBy: { createdAt: 'desc' },
             },
           },
+          orderBy: { dayNumber: 'asc' },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    const topics = await db.topic.findMany({
-      where: {
-        day: {
-          roadmap: {
-            userId: userId,
+    // H4: Extract flat topic history from nested roadmap data instead of second query
+    const topics = roadmaps.flatMap((r) =>
+      r.days.flatMap((d) =>
+        d.topics.map((t) => ({
+          id: t.id,
+          title: t.title,
+          mode: t.mode,
+          createdAt: t.createdAt,
+          day: {
+            id: d.id,
+            dayNumber: d.dayNumber,
+            roadmap: { id: r.id, title: r.title },
           },
-        },
-      },
-      select: {
-        id: true,
-        title: true,
-        mode: true,
-        createdAt: true,
-        day: {
-          select: {
-            id: true,
-            dayNumber: true,
-            roadmap: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        }))
+      )
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    return res.json({ success: true, roadmaps, topics });
+    const payload = { success: true, roadmaps, topics };
+
+    // M5: Cache for 5 minutes
+    await redisCache.setCache(cacheKey, JSON.stringify(payload), 300);
+
+    return res.json(payload);
   } catch (error) {
     console.error('Fetch dashboard summary error:', error);
     return res.status(500).json({ error: 'Failed to compile user activity logs summary' });
@@ -380,8 +411,8 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
 
     const modeNumber = parseInt(mode, 10);
 
-    // Redis Cache lookup
-    const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}`;
+    // M2: Cache key must include mode — Socratic vs. Accelerator notes are different content
+    const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
     const cachedNotes = await redisCache.getCache(cacheKey);
 
     if (cachedNotes) {
@@ -389,24 +420,27 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
       try {
         const parsedContent = JSON.parse(cachedNotes);
 
-        // If dayId is provided, we should still save this cached content to the DB history stack
+        // C5: Only write to DB if no topic record exists for this dayId yet (prevents duplicate writes)
         if (dayId) {
           try {
-            await db.topic.create({
-              data: {
-                dayId: dayId,
-                title: topic,
-                mode: modeNumber,
-                notesHtml: cachedNotes,
-                citations: {
-                  create: (parsedContent.sources || []).map((s: any) => ({
-                    label: s.label || 'Web Reference',
-                    rawText: `Citation mapping references verification from scraper: ${s.label}`,
-                    sourceUrl: s.url,
-                  })),
+            const existingTopic = await db.topic.findFirst({ where: { dayId, mode: modeNumber } });
+            if (!existingTopic) {
+              await db.topic.create({
+                data: {
+                  dayId,
+                  title: topic,
+                  mode: modeNumber,
+                  notesHtml: cachedNotes,
+                  citations: {
+                    create: (parsedContent.sources || []).map((s: any) => ({
+                      label: s.label || 'Web Reference',
+                      rawText: `Citation source: ${s.label}`,
+                      sourceUrl: s.url,
+                    })),
+                  },
                 },
-              },
-            });
+              });
+            }
           } catch (dbErr) {
             console.error('Failed to persist cached topic notes to DB:', dbErr);
           }
@@ -460,11 +494,12 @@ Important Citation Instructions:
 
     const userPrompt = `Generate premium, comprehensive educational study notes for "${topic}" at the "${difficulty}" level. If it involves programming, include detailed code examples.`;
 
-    // Generate output (First Pass)
+    // Generate output (First Pass) — H2: cap maxTokens to prevent Groq JSON validation failures
     const firstPassResponse = await aiService.generate(userPrompt, {
       systemPrompt: systemPrompt,
       jsonMode: true,
       temperature: 0.5,
+      maxTokens: 4096,
     });
 
     // Double-Pass Review (Second Pass)
@@ -490,7 +525,8 @@ ${firstPassResponse}`;
     const responseText = await aiService.generate(reviewPrompt, {
       systemPrompt: reviewSystemPrompt,
       jsonMode: true,
-      temperature: 0.3, // Lower temperature for correction precision
+      temperature: 0.3,
+      maxTokens: 4096,
     });
 
     let parsedContent;
@@ -560,10 +596,12 @@ app.post('/api/roadmap', authenticate, async (req: express.Request, res: express
     // Call Mode 4 (Roadmap Generator)
     const config = getPedagogicalModeConfig(4, goal, difficulty, []);
 
+    // M4: Add maxTokens to roadmap call to prevent Groq JSON truncation errors
     const responseText = await aiService.generate(config.userPrompt, {
       systemPrompt: config.systemPrompt,
       jsonMode: true,
       temperature: 0.5,
+      maxTokens: 2048,
     });
 
     let roadmapData;
@@ -579,31 +617,8 @@ app.post('/api/roadmap', authenticate, async (req: express.Request, res: express
       }
     }
 
-    // Identify/Create active user
-    let activeUserId = (req as AuthenticatedRequest).user?.id || userId;
-    if (!activeUserId) {
-      const defaultUser = await db.user.findFirst();
-      if (defaultUser) {
-        activeUserId = defaultUser.id;
-      } else {
-        const newUser = await db.user.create({
-          data: {
-            email: 'student@edlearn.com',
-            passwordHash: 'dummy_hash_for_testing',
-            profile: {
-              create: {
-                fullName: 'Default Learner',
-                careerGoal: goal,
-                currentSkills: [],
-                availableTime: parseInt(availableTime, 10),
-                difficulty,
-              },
-            },
-          },
-        });
-        activeUserId = newUser.id;
-      }
-    }
+    // C4: The authenticate middleware guarantees req.user.id — no ghost user creation needed
+    const activeUserId = (req as AuthenticatedRequest).user!.id;
 
     // Save Roadmap
     const createdRoadmap = await db.roadmap.create({
@@ -624,6 +639,10 @@ app.post('/api/roadmap', authenticate, async (req: express.Request, res: express
         days: true,
       },
     });
+
+    // Auto-set this new roadmap as active in Redis + invalidate dashboard cache
+    await redisCache.setCache(`active_roadmap:${activeUserId}`, createdRoadmap.id, 2592000);
+    await redisCache.deleteCache(`dashboard:${activeUserId}`);
 
     res.json({
       success: true,
@@ -678,35 +697,38 @@ async function calculateUserRankAndBadges(userId: string): Promise<{ rank: strin
 
 app.get('/api/doubt', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    await connectMongo();
     const topicId = req.query.topicId as string;
-
     if (!topicId) {
       return res.status(400).json({ error: 'Missing topicId query parameter' });
     }
 
     const threads = await Thread.find({ topicId }).sort({ createdAt: -1 });
 
-    const enrichedThreads = await Promise.all(threads.map(async (t) => {
-      const authorMetadata = await calculateUserRankAndBadges(t.author.userId);
+    // H3: Collect all unique user IDs upfront to avoid N+1 badge queries
+    const uniqueUserIds = [...new Set([
+      ...threads.map((t) => t.author.userId),
+      ...threads.flatMap((t) => t.comments.map((c: any) => c.author.userId)),
+    ])];
 
-      const enrichedComments = await Promise.all(t.comments.map(async (c) => {
-        const commentAuthorMetadata = await calculateUserRankAndBadges(c.author.userId);
+    // Fetch badge data for all unique users in parallel (2 queries per user instead of 2 per thread/comment)
+    const badgeMap = new Map<string, { rank: string; badges: string[] }>();
+    await Promise.all(uniqueUserIds.map(async (uid) => {
+      badgeMap.set(uid, await calculateUserRankAndBadges(uid));
+    }));
+
+    const enrichedThreads = threads.map((t) => {
+      const authorMeta = badgeMap.get(t.author.userId) || { rank: 'Learner', badges: [] };
+      const enrichedComments = t.comments.map((c: any) => {
+        const commentMeta = badgeMap.get(c.author.userId) || { rank: 'Learner', badges: [] };
         return {
           commentId: c.commentId,
           content: c.content,
           upvotes: c.upvotes,
           replies: c.replies,
           createdAt: c.createdAt,
-          author: {
-            userId: c.author.userId,
-            name: c.author.name,
-            rank: commentAuthorMetadata.rank,
-            badges: commentAuthorMetadata.badges
-          }
+          author: { userId: c.author.userId, name: c.author.name, rank: commentMeta.rank, badges: commentMeta.badges },
         };
-      }));
-
+      });
       return {
         _id: t._id,
         topicId: t.topicId,
@@ -716,16 +738,10 @@ app.get('/api/doubt', authenticate, async (req: express.Request, res: express.Re
         resolved: t.resolved,
         bestAnswerId: t.bestAnswerId,
         createdAt: t.createdAt,
-        author: {
-          userId: t.author.userId,
-          name: t.author.name,
-          avatar: t.author.avatar,
-          rank: authorMetadata.rank,
-          badges: authorMetadata.badges
-        },
-        comments: enrichedComments
+        author: { userId: t.author.userId, name: t.author.name, avatar: t.author.avatar, rank: authorMeta.rank, badges: authorMeta.badges },
+        comments: enrichedComments,
       };
-    }));
+    });
 
     res.json({ success: true, threads: enrichedThreads });
   } catch (error) {
@@ -736,7 +752,6 @@ app.get('/api/doubt', authenticate, async (req: express.Request, res: express.Re
 
 app.post('/api/doubt', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    await connectMongo();
     const { action, topicId, title, content, authorName, userId, threadId } = req.body;
 
     if (action === 'createThread') {
@@ -809,7 +824,6 @@ app.post('/api/doubt', authenticate, async (req: express.Request, res: express.R
 // 5. Market Demand trends API
 app.get('/api/market-demand', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    await connectMongo();
     const trends = await MarketDemand.find().sort({ demandScore: -1 });
     return res.json({ success: true, trends });
   } catch (error) {
@@ -818,8 +832,19 @@ app.get('/api/market-demand', authenticate, async (req: express.Request, res: ex
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server successfully listening on port ${PORT}`);
-  // Start the background cron updater
-  startMarketDemandCron();
+async function startServer() {
+  // H5: Connect MongoDB once at startup instead of per-request
+  await connectMongo();
+  console.log('MongoDB connected at startup');
+
+  app.listen(PORT, () => {
+    console.log(`Backend server successfully listening on port ${PORT}`);
+    // Start the background cron updater
+    startMarketDemandCron();
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

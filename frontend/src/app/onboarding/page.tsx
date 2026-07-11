@@ -60,6 +60,15 @@ export default function OnboardingPage() {
       });
 
       if (response.data?.success) {
+        // H6: Persist profile to DB so session restores always have real data (not synthetic fallback)
+        await axios.patch('/api/profile', {
+          fullName,
+          careerGoal: goal,
+          currentSkills: [],
+          availableTime: availableTime.toString(),
+          difficulty,
+        }).catch((err) => console.warn('Profile persist warning:', err));
+
         setUserProfile({
           fullName,
           careerGoal: goal,

@@ -7,40 +7,49 @@ export interface ScrapedContext {
   sourceUrl: string;
 }
 
+const WIKI_HEADERS = {
+  headers: {
+    'User-Agent': 'EdLearn/1.0 (contact@edlearn.edu; Academic RAG Research Engine)',
+  }
+};
+
 /**
  * Searches Wikipedia and returns the page text context.
+ * H1 Fix: Fetches both pages in parallel with Promise.all (saves ~1.5s vs. serial)
  */
 async function searchWikipedia(query: string): Promise<ScrapedContext[]> {
   try {
-    const headers = {
-      headers: {
-        'User-Agent': 'EdLearn/1.0 (contact@edlearn.edu; Academic RAG Research Engine)',
-      }
-    };
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
       query
     )}&format=json&origin=*`;
-    const searchResponse = await axios.get(searchUrl, headers);
+    const searchResponse = await axios.get(searchUrl, WIKI_HEADERS);
     const searchResults = searchResponse.data.query?.search || [];
-    
+
     if (searchResults.length === 0) return [];
 
-    const results: ScrapedContext[] = [];
-    // Retrieve intro content for the top 2 matching articles
-    for (const result of searchResults.slice(0, 2)) {
+    // H1: Fetch top 2 article extracts in PARALLEL instead of sequential
+    const topResults = searchResults.slice(0, 2);
+    const contentFetches = topResults.map(async (result: any) => {
       const pageId = result.pageid;
       const contentUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&pageids=${pageId}&format=json&origin=*`;
-      const contentResponse = await axios.get(contentUrl, headers);
-      const pageData = contentResponse.data.query?.pages[pageId];
-      if (pageData && pageData.extract) {
-        results.push({
-          title: pageData.title,
-          content: pageData.extract,
-          sourceUrl: `https://en.wikipedia.org/?curid=${pageId}`,
-        });
+      try {
+        const contentResponse = await axios.get(contentUrl, WIKI_HEADERS);
+        const pageData = contentResponse.data.query?.pages[pageId];
+        if (pageData && pageData.extract) {
+          return {
+            title: pageData.title,
+            content: pageData.extract,
+            sourceUrl: `https://en.wikipedia.org/?curid=${pageId}`,
+          } as ScrapedContext;
+        }
+      } catch {
+        // Skip failed individual page fetch
       }
-    }
-    return results;
+      return null;
+    });
+
+    const results = await Promise.all(contentFetches);
+    return results.filter((r): r is ScrapedContext => r !== null);
   } catch (error) {
     console.error('Wikipedia search error:', error);
     return [];
@@ -59,10 +68,10 @@ async function scrapeUrl(url: string): Promise<ScrapedContext> {
       timeout: 8000,
     });
     const $ = cheerio.load(response.data);
-    
+
     // Eliminate layout overhead elements
     $('script, style, nav, footer, header, iframe, noscript').remove();
-    
+
     const title = $('title').text().trim() || 'External Web Resource';
     const content = $('p')
       .map((_, el) => $(el).text())
@@ -72,11 +81,7 @@ async function scrapeUrl(url: string): Promise<ScrapedContext> {
       .trim()
       .slice(0, 10000); // Restrict token length
 
-    return {
-      title,
-      content,
-      sourceUrl: url,
-    };
+    return { title, content, sourceUrl: url };
   } catch (error) {
     console.error(`Scrape URL error for ${url}:`, error);
     throw new Error(`Failed to scrape content from ${url}`);
