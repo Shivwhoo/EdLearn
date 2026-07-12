@@ -128,10 +128,30 @@ export const LeftNavigationPanel: React.FC = () => {
         {/* Pedagogical Modes Selector */}
         <div className="border-t border-slate-800 pt-5">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Pedagogical Modes</h3>
-          <p className="text-xs text-slate-500/80 italic leading-normal bg-slate-950/20 p-3 rounded-lg border border-slate-800/40">
+          <p className="text-xs text-slate-500/80 italic leading-normal bg-slate-950/20 p-3 rounded-lg border border-slate-800/40 mb-3">
             Modes have been suspended to focus entirely on high-quality study notes.
           </p>
+
+          {/* Duo Podcast — always available */}
+          <button
+            onClick={() => setActiveMode(7)}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+              activeMode === 7
+                ? 'bg-violet-600/15 border-violet-500/50 text-violet-300'
+                : 'bg-slate-800/30 border-slate-700/40 hover:bg-violet-600/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300'
+            }`}
+          >
+            <span className="text-lg">🎙️</span>
+            <div>
+              <div className="text-xs font-bold tracking-wide">Duo Podcast</div>
+              <div className="text-[10px] text-slate-500">AI host &amp; expert dialogue</div>
+            </div>
+            {activeMode === 7 && (
+              <span className="ml-auto text-[10px] font-bold text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded uppercase tracking-wide">Active</span>
+            )}
+          </button>
         </div>
+
       </div>
 
       {/* User profile capsule */}

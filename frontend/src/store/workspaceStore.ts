@@ -51,7 +51,7 @@ export interface WorkspaceState {
   currentTopicId: string | null;
   
   // Pedagogical Model generation state
-  activeMode: number; // 1 to 6
+  activeMode: number; // 1 to 7
   generatedContent: any | null; 
   isLoadingContent: boolean;
   
