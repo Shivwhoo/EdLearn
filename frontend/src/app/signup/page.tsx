@@ -62,7 +62,7 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950 flex flex-col items-center justify-center p-4">
+    <main className="min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950 flex flex-col items-center justify-center px-4 pt-28 pb-12">
       {/* Visual background accents */}
       <div className="absolute top-10 left-10 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl" />
       <div className="absolute bottom-10 right-10 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl" />
@@ -85,7 +85,7 @@ export default function SignupPage() {
 
         <form onSubmit={handleSignupSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Your Full Name</label>
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your Full Name</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                 <User className="h-4.5 w-4.5" />
@@ -102,7 +102,7 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Email Address</label>
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                 <Mail className="h-4.5 w-4.5" />
@@ -119,7 +119,7 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Password</label>
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                 <Lock className="h-4.5 w-4.5" />

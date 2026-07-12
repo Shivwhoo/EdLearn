@@ -73,7 +73,7 @@ export const LeftNavigationPanel: React.FC = () => {
   if (!roadmap) return null;
 
   return (
-    <aside className="print:hidden w-80 border-r border-slate-800 bg-slate-900/60 p-6 flex flex-col justify-between h-[calc(100vh-80px)] overflow-y-auto">
+    <aside className="print:hidden w-full h-full bg-slate-900/60 p-6 flex flex-col justify-between overflow-y-auto">
       <div>
         <div className="flex items-center space-x-2 mb-8">
           <GraduationCap className="h-8 w-8 text-indigo-500" />
@@ -115,7 +115,7 @@ export const LeftNavigationPanel: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {hasContent && !isSelected && (
-                      <span className="text-[9px] font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase tracking-wide">Done</span>
+                      <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase tracking-wide">Done</span>
                     )}
                     <ChevronRight className="h-4 w-4 text-slate-500 flex-shrink-0" />
                   </div>
@@ -126,7 +126,7 @@ export const LeftNavigationPanel: React.FC = () => {
         </div>
 
         {/* Pedagogical Modes Selector */}
-        <div className="border-t border-slate-850 pt-5">
+        <div className="border-t border-slate-800 pt-5">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Pedagogical Modes</h3>
           <p className="text-xs text-slate-500/80 italic leading-normal bg-slate-950/20 p-3 rounded-lg border border-slate-800/40">
             Modes have been suspended to focus entirely on high-quality study notes.
@@ -220,7 +220,7 @@ export const LeftNavigationPanel: React.FC = () => {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Min 8 chars, 1 letter, 1 number"
-                  className="w-full bg-slate-955/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 transition-colors"
                 />
               </div>
 

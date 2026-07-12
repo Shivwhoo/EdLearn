@@ -157,14 +157,14 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
       <div className="flex items-center space-x-2 w-1/4">
         <Volume2 className="h-5 w-5 text-amber-500" />
         <div className="flex items-end space-x-0.5 h-6">
-          {[...Array(12)].map((_, i) => (
+          {[10, 18, 8, 22, 14, 24, 12, 20, 9, 16, 11, 19].map((barHeight, i) => (
             <div
               key={i}
               className={`w-1 bg-amber-500 rounded-full transition-all duration-300 ${
-                isPlaying ? 'animate-pulse' : 'h-1'
+                isPlaying ? 'animate-pulse' : ''
               }`}
               style={{
-                height: isPlaying ? `${Math.max(4, Math.random() * 24)}px` : '4px',
+                height: isPlaying ? `${barHeight}px` : '4px',
                 animationDelay: `${i * 0.1}s`,
               }}
             />
@@ -184,7 +184,7 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
 
         <button
           onClick={handlePlayPause}
-          className="p-4 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-955 rounded-full shadow-lg shadow-amber-500/20 transition-all"
+          className="p-4 bg-amber-500 hover:bg-amber-600 active:scale-95 rounded-full shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
         >
           {isPlaying ? <Pause className="h-6 w-6 text-slate-900 fill-slate-900" /> : <Play className="h-6 w-6 text-slate-900 fill-slate-900 ml-0.5" />}
         </button>

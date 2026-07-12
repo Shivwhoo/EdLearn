@@ -43,11 +43,11 @@ export default function AboutPage() {
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-slate-200">Anti-Hallucination RAG Architecture</h3>
               <p className="text-sm leading-relaxed text-slate-400">
-                To guarantee academic truth, our server performs real-time searches on topic requests. It scrapes source extracts (like Wikipedia and web content) and enforces a **Double-Pass Review heuristic**:
+                To guarantee academic truth, our server performs real-time searches on topic requests. It scrapes source extracts (like Wikipedia and web content) and enforces a <strong className="text-slate-300 font-semibold">Double-Pass Review heuristic</strong>:
               </p>
               <ul className="list-disc list-inside text-xs text-slate-500 space-y-1 pl-2">
-                <li>**Pass 1:** Synthesizes initial notes structure from scraped references.</li>
-                <li>**Pass 2:** Re-checks the content block-by-block, marking inline indices `[1]`, `[2]` and correcting assumptions or logic gaps.</li>
+                <li><strong className="text-slate-400 font-semibold">Pass 1:</strong> Synthesizes initial notes structure from scraped references.</li>
+                <li><strong className="text-slate-400 font-semibold">Pass 2:</strong> Re-checks the content block-by-block, marking inline indices <code className="text-indigo-300 font-mono text-[11px]">[1]</code>, <code className="text-indigo-300 font-mono text-[11px]">[2]</code> and correcting assumptions or logic gaps.</li>
               </ul>
             </div>
           </div>

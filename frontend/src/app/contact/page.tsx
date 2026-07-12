@@ -80,7 +80,7 @@ export default function ContactPage() {
 
             <form onSubmit={handleContactSubmit} className="space-y-5">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-450 uppercase tracking-wider">Your Name</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your Name</label>
                 <input
                   type="text"
                   required
@@ -92,7 +92,7 @@ export default function ContactPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-455 uppercase tracking-wider">Email Address</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email Address</label>
                 <input
                   type="email"
                   required
@@ -104,14 +104,14 @@ export default function ContactPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-455 uppercase tracking-wider">Message Content</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Message Content</label>
                 <textarea
                   required
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Type your feedback, questions, or message..."
-                  className="w-full bg-slate-955/60 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:border-indigo-500 transition-colors resize-none"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:border-indigo-500 transition-colors resize-none"
                 />
               </div>
 

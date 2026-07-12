@@ -17,6 +17,7 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
   const [id] = useState(() => `mermaid-svg-${Math.floor(Math.random() * 1000000)}`);
 
   useEffect(() => {
+    let isMounted = true;
     setError(null);
     setShowRaw(false);
 
@@ -35,7 +36,7 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
 
       // Clear previous rendering
       if (containerRef.current) {
-        containerRef.current.innerHTML = `<div class="animate-pulse text-slate-550 text-xs">Parsing diagram...</div>`;
+        containerRef.current.innerHTML = `<div class="animate-pulse text-slate-500 text-xs">Parsing diagram...</div>`;
       }
 
       // Sanitize the chart string to fix typical AI syntax hallucinations (e.g. arrows inside label blocks like "-->|label|>")
@@ -47,24 +48,35 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
       // Try to render the diagram code
       mermaid.render(id, sanitizedChart)
         .then((res) => {
-          if (containerRef.current) {
+          if (isMounted && containerRef.current) {
             containerRef.current.innerHTML = res.svg;
+            if (res.bindFunctions) {
+              res.bindFunctions(containerRef.current);
+            }
           }
         })
         .catch((err) => {
-          console.error('Mermaid render error:', err);
-          setError('Failed to parse visual flowchart syntax.');
+          if (isMounted) {
+            console.error('Mermaid render error:', err);
+            setError('Failed to parse visual flowchart syntax.');
+          }
         });
     } catch (err: any) {
-      console.error('Mermaid init error:', err);
-      setError(err.message || 'Failed to initialize diagram parser.');
+      if (isMounted) {
+        console.error('Mermaid init error:', err);
+        setError(err.message || 'Failed to initialize diagram parser.');
+      }
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [chart, id]);
 
   if (error) {
     return (
       <div className="bg-slate-900/40 border border-amber-500/10 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center space-x-2 text-amber-555">
+        <div className="flex items-center space-x-2 text-amber-500">
           <AlertCircle className="h-4.5 w-4.5 flex-shrink-0" />
           <span className="text-xs font-bold uppercase tracking-wider">Visual Flowchart Failed</span>
         </div>
@@ -73,7 +85,7 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
         </p>
         <button
           onClick={() => setShowRaw(!showRaw)}
-          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-750 transition-all cursor-pointer"
+          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
         >
           <Eye className="h-3.5 w-3.5" />
           <span>{showRaw ? 'Hide Raw Flowchart' : 'Show Raw Flowchart'}</span>
@@ -95,7 +107,7 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
       </div>
       <div 
         ref={containerRef} 
-        className="mermaid-container w-full overflow-x-auto flex justify-center text-slate-200 py-2 select-none [&_svg]:max-w-full [&_svg]:h-auto [&_svg_rect]:fill-slate-800/90 [&_svg_rect]:stroke-indigo-500/30 [&_svg_path]:stroke-slate-500 [&_svg_marker]:stroke-slate-500 [&_svg_span]:text-slate-200" 
+        className="mermaid-container w-full overflow-x-auto flex justify-center py-2 select-none" 
       />
     </div>
   );

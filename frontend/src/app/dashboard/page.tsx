@@ -178,7 +178,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="relative min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 p-6 md:p-12 pt-36 md:pt-40">
+    <main className="relative min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 p-6 md:p-12 pt-32 md:pt-36">
       {/* Visual background accents — anchored to this relatively-positioned
           <main>, not the viewport, so they no longer overlap the fixed
           PublicNavbar or sit outside the intended container. */}
@@ -233,7 +233,7 @@ export default function DashboardPage() {
                   <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-full inline-block text-indigo-400">
                     <GraduationCap className="h-8 w-8" />
                   </div>
-                  <h3 className="text-slate-350 font-bold">No roadmaps initialized</h3>
+                  <h3 className="text-slate-300 font-bold">No roadmaps initialized</h3>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
                     You haven't initialized an AI-generated learning pathway yet. Click below to specify your topic target and durations!
                   </p>
@@ -309,7 +309,7 @@ export default function DashboardPage() {
               </h2>
 
               {historyNotes.length === 0 ? (
-                <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl text-center text-slate-555 py-12 text-xs">
+                <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl text-center text-slate-500 py-12 text-xs">
                   No note runs generated yet. When you compile study notes, they will appear here.
                 </div>
               ) : (
@@ -317,14 +317,14 @@ export default function DashboardPage() {
                   {historyNotes.map((n) => (
                     <div
                       key={n.id}
-                      className="bg-slate-900/50 border border-slate-850 hover:border-slate-800 rounded-xl p-4.5 hover:bg-slate-900/90 transition-all flex justify-between items-center gap-4 group"
+                      className="bg-slate-900/50 border border-slate-800 hover:border-slate-700 rounded-xl p-4.5 hover:bg-slate-900/90 transition-all flex justify-between items-center gap-4 group"
                     >
                       <div className="min-w-0 flex-1 space-y-1">
                         <h4 className="text-xs font-bold text-slate-300 truncate">{n.title}</h4>
-                        <p className="text-[10px] text-slate-500 truncate">
+                        <p className="text-[11px] text-slate-500 truncate">
                           {n.day?.roadmap?.title || 'Custom Path'} • Day {n.day?.dayNumber}
                         </p>
-                        <p className="text-[9px] text-slate-650">
+                        <p className="text-[11px] text-slate-600">
                           Generated: {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
@@ -357,15 +357,15 @@ export default function DashboardPage() {
               ) : trends.length === 0 ? (
                 <p className="text-xs text-slate-500">No market demand data available yet.</p>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
+                <div className="flex flex-wrap gap-2.5">
                   {trends.slice(0, 9).map((t: any) => (
                     <div
                       key={t._id || t.skill}
-                      className="bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-3 text-center space-y-1"
+                      className="flex items-center gap-2.5 bg-slate-950/60 border border-slate-800 hover:border-emerald-500/30 rounded-full pl-4 pr-2 py-1.5 transition-colors"
                       title={`Source: ${t.source}`}
                     >
-                      <p className="text-xs font-bold text-slate-200 truncate">{t.skill}</p>
-                      <p className="text-[10px] text-emerald-400 font-semibold">{t.demandScore}</p>
+                      <span className="text-xs font-semibold text-slate-200">{t.skill}</span>
+                      <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">{t.demandScore}</span>
                     </div>
                   ))}
                 </div>
@@ -404,7 +404,7 @@ export default function DashboardPage() {
                             />
                           </div>
                           {f.relatedTopic && (
-                            <p className="text-[10px] text-amber-400 font-semibold">{f.relatedTopic}</p>
+                            <p className="text-[11px] text-amber-400 font-semibold">{f.relatedTopic}</p>
                           )}
                           {isExpanded && (
                             <p className="text-[11px] text-slate-400 leading-relaxed pt-2 mt-2 border-t border-slate-800">

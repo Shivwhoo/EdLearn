@@ -166,7 +166,7 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
   }
 
   return (
-    <div className={`flex-1 p-8 overflow-y-auto h-[calc(100vh-80px)] pb-32 bg-[#0F1117] print:h-auto print:overflow-visible print:bg-white print:p-0 ${focusMode ? 'focus-active' : ''}`}>
+    <div className={`flex-1 min-h-0 p-8 overflow-y-auto pb-24 bg-[#0F1117] print:h-auto print:overflow-visible print:bg-white print:p-0 ${focusMode ? 'focus-active' : ''}`}>
       <div className="printable-notes max-w-3xl mx-auto space-y-8 animate-fade-in print:max-w-none print:p-8">
 
         {/* Header Section */}

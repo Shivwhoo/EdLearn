@@ -24,7 +24,7 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="max-w-6xl mx-auto px-6 pt-16 pb-20 text-center relative z-10 flex-1 flex flex-col justify-center items-center">
-        <div className="inline-flex items-center space-x-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-indigo-400 text-xs font-semibold mb-6 animate-pulse">
+        <div className="inline-flex items-center space-x-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-indigo-400 text-xs font-semibold mb-6">
           <Sparkles className="h-3.5 w-3.5" />
           <span>Next-Generation Adaptive Learning</span>
         </div>

@@ -123,7 +123,7 @@ export default function WorkspacePage() {
   return (
     <div className="h-screen bg-[#0F1117] flex flex-col justify-between overflow-hidden print:h-auto print:overflow-visible">
       {/* Top Banner Control Bar — hidden entirely when printing/exporting to PDF */}
-      <header className="print:hidden h-14 border-b border-[#2A2A2A] bg-[#121212]/80 backdrop-blur-md px-6 flex items-center justify-between z-20">
+      <header className="print:hidden h-14 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-6 flex items-center justify-between z-20">
         <div className="flex items-center space-x-4">
           <button 
             onClick={() => setIsNavOpen(!isNavOpen)}
@@ -172,9 +172,9 @@ export default function WorkspacePage() {
       {/* Main Panel grid — must stop clipping (overflow-hidden) during print,
           otherwise only the visible viewport slice of the notes gets exported
           to PDF instead of the full scrollable document. */}
-      <div className="flex flex-1 overflow-hidden print:h-auto print:overflow-visible print:flex-col relative">
+      <div className={`flex flex-1 overflow-hidden print:h-auto print:overflow-visible print:flex-col relative ${generatedContent ? 'pb-20 print:pb-0' : ''}`}>
         {/* Left pane - Now a drawer on smaller screens or collapsible */}
-        <div className={`transition-all duration-300 ease-in-out border-r border-[#2A2A2A] bg-[#121212] z-10 ${isNavOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full absolute h-full'}`}>
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-slate-800 bg-slate-950 z-10 ${isNavOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full absolute h-full border-r-0'}`}>
           <div className="w-80 h-full">
             <LeftNavigationPanel />
           </div>
@@ -191,7 +191,7 @@ export default function WorkspacePage() {
         </div>
 
         {/* Right pane - Overlay or collapsible */}
-        <div className={`transition-all duration-300 ease-in-out border-l border-[#2A2A2A] bg-[#121212] z-10 ${isAssistantOpen ? 'w-96 translate-x-0' : 'w-0 translate-x-full absolute right-0 h-full'}`}>
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden border-l border-slate-800 bg-slate-950 z-10 ${isAssistantOpen ? 'w-96 translate-x-0' : 'w-0 translate-x-full absolute right-0 h-full border-l-0'}`}>
           <div className="w-96 h-full">
             <InteractiveAssistant />
           </div>

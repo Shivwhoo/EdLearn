@@ -177,7 +177,7 @@ export const InteractiveAssistant: React.FC = () => {
   };
 
   return (
-    <aside className="print:hidden w-80 border-l border-slate-800 bg-slate-900/40 flex flex-col h-[calc(100vh-80px)]">
+    <aside className="print:hidden w-full h-full bg-slate-900/40 flex flex-col">
       {/* Sidebar Tabs */}
       <div className="flex border-b border-slate-800">
         <button
@@ -230,7 +230,7 @@ export const InteractiveAssistant: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {chatMessages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-2.5 max-w-[220px] rounded-lg text-xs leading-relaxed ${
+                <div className={`p-2.5 max-w-[280px] rounded-lg text-xs leading-relaxed ${
                   msg.role === 'user' ? 'bg-indigo-600 text-indigo-100' : 'bg-slate-800 border border-slate-700 text-slate-300'
                 }`}>
                   {msg.content}
@@ -313,16 +313,16 @@ export const InteractiveAssistant: React.FC = () => {
                   <div>
                     <h5 className="font-bold text-slate-200 text-xs">{thread.title}</h5>
                     <p className="text-slate-400 text-[11px] mt-0.5">{thread.content}</p>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
                       <div className="flex flex-col space-y-0.5">
                         <span className="font-semibold">{thread.author.name}</span>
                         {thread.author.rank && (
-                          <span className="text-[9px] text-amber-500/80 font-medium">Rank: {thread.author.rank}</span>
+                          <span className="text-[10px] text-amber-500/80 font-medium">Rank: {thread.author.rank}</span>
                         )}
                         {thread.author.badges && thread.author.badges.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {thread.author.badges.map((b: string, i: number) => (
-                              <span key={i} className="px-1 py-0.2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded text-[8px] scale-90 origin-left">
+                              <span key={i} className="px-1.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded text-[10px]">
                                 {b}
                               </span>
                             ))}
@@ -343,18 +343,18 @@ export const InteractiveAssistant: React.FC = () => {
                   {thread.comments?.length > 0 && (
                     <div className="border-t border-slate-800/60 pt-2 space-y-1.5">
                       {thread.comments.map((comment: any) => (
-                        <div key={comment.commentId} className="bg-slate-900/40 p-2 rounded text-[10px] text-slate-300 space-y-1">
+                        <div key={comment.commentId} className="bg-slate-900/40 p-2 rounded text-[11px] text-slate-300 space-y-1">
                           <div className="flex items-center justify-between border-b border-slate-800/40 pb-0.5 mb-1">
                             <span className="font-semibold text-indigo-400">{comment.author.name}</span>
                             {comment.author.rank && (
-                              <span className="text-[8px] text-amber-500/80">{comment.author.rank}</span>
+                              <span className="text-[10px] text-amber-500/80">{comment.author.rank}</span>
                             )}
                           </div>
-                          <p className="text-slate-300 text-[10px]">{comment.content}</p>
+                          <p className="text-slate-300 text-[11px]">{comment.content}</p>
                           {comment.author.badges && comment.author.badges.length > 0 && (
-                            <div className="flex flex-wrap gap-0.5 pt-0.5">
+                            <div className="flex flex-wrap gap-1 pt-0.5">
                               {comment.author.badges.map((b: string, i: number) => (
-                                <span key={i} className="px-1 py-0.2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded text-[7px] scale-90">
+                                <span key={i} className="px-1.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded text-[10px]">
                                   {b}
                                 </span>
                               ))}
@@ -377,7 +377,7 @@ export const InteractiveAssistant: React.FC = () => {
                     />
                     <button
                       onClick={() => handleCreateComment(thread._id)}
-                      className="px-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded text-[10px]"
+                      className="px-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded text-[11px] transition-colors cursor-pointer"
                     >
                       Post
                     </button>
