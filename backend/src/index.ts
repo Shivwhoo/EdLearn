@@ -1,5 +1,6 @@
 import './loadEnv';
 
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import { aiService } from './lib/ai/aiService';
@@ -14,6 +15,8 @@ import { startMarketDemandCron } from './lib/cronScraper';
 import { hashPassword, verifyPassword, generateToken } from './lib/auth';
 import { authenticate, AuthenticatedRequest } from './middleware/auth';
 import { redisCache } from './lib/redis';
+import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
+import { generateSpeechFile } from './lib/tts';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +27,11 @@ app.use(cors({ origin: allowedOrigin, credentials: true }));
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
+
+// Serve generated TTS audio files. Mounted under /api so the existing
+// frontend rewrite ("/api/:path*" -> backend) already proxies it — see
+// frontend/next.config.ts.
+app.use('/api/tts/audio', express.static(path.join(__dirname, '../tts-audio')));
 
 // 1. Health Probe
 app.get('/api/health', (req, res) => {
@@ -829,6 +837,235 @@ app.get('/api/market-demand', authenticate, async (req: express.Request, res: ex
   } catch (error) {
     console.error('Market demand fetch error:', error);
     return res.status(500).json({ error: 'Failed to fetch market demand indicators' });
+  }
+});
+
+// 6. SSO Handoff — mints a short-lived signed token so a user already logged
+// into EdLearn isn't asked to log in again on EdMentor / EdCompass / EdQuiz.
+// The receiving app must independently verify this token and establish its
+// own session; that half of the work does not live in this repo.
+app.post('/api/sso/handoff', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const { app: targetApp, topic } = req.body;
+
+    const validApps: SsoApp[] = ['edmentor', 'edcompass', 'edquiz'];
+    if (!targetApp || !validApps.includes(targetApp)) {
+      return res.status(400).json({ error: `Invalid or missing "app". Must be one of: ${validApps.join(', ')}` });
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      include: { profile: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const name = user.profile?.fullName || user.email.split('@')[0];
+    const safeTopic = typeof topic === 'string' && topic.trim() ? topic.trim().slice(0, 200) : undefined;
+
+    const token = generateHandoffToken({
+      email: user.email,
+      name,
+      app: targetApp as SsoApp,
+      topic: safeTopic,
+    });
+
+    const url = buildHandoffUrl(targetApp as SsoApp, token, safeTopic);
+
+    res.json({ success: true, url });
+  } catch (error) {
+    console.error('SSO Handoff Error:', error);
+    res.status(500).json({ error: 'Internal Server Error generating handoff token.' });
+  }
+});
+
+// 7. Personalized Facts Feed — short "did you know" facts tied to whatever
+// the user is currently learning, for the scrolling mini-facts widget on the
+// dashboard. Reuses the same aiService + JSON-schema prompting pattern as
+// /api/generate, and Redis-caches a batch the same way /api/generate caches
+// notes, so repeat dashboard visits don't regenerate a batch every time.
+// Pass ?fresh=true to force a brand-new batch (used by "Load more").
+app.get('/api/facts', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const forceFresh = req.query.fresh === 'true';
+    const cacheKey = `facts:${userId}`;
+
+    if (!forceFresh) {
+      const cached = await redisCache.getCache(cacheKey);
+      if (cached) {
+        try {
+          return res.json({ success: true, facts: JSON.parse(cached) });
+        } catch {
+          // Fall through and regenerate a fresh batch if the cached value is corrupt.
+        }
+      }
+    }
+
+    const user = await db.user.findUnique({ where: { id: userId }, include: { profile: true } });
+
+    const activeRoadmap = await db.roadmap.findFirst({
+      where: { userId },
+      include: { days: { include: { topics: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const topicTitles = activeRoadmap
+      ? Array.from(new Set(
+          activeRoadmap.days.flatMap((d) => [d.title, ...d.topics.map((t) => t.title)])
+        )).slice(0, 6)
+      : [];
+
+    const subjectLine = topicTitles.length > 0
+      ? topicTitles.join(', ')
+      : (user?.profile?.careerGoal || 'general computer science and technology');
+
+    const systemPrompt = `You generate short, genuinely interesting "did you know" facts for a micro-learning feed.
+Facts must be factually accurate, specific (not vague truisms), and directly tied to one of the given subjects.
+You must return your output strictly in JSON format matching the schema below.
+Schema:
+{
+  "facts": [
+    {
+      "fact": "string (one short punchy sentence, no more)",
+      "relatedTopic": "string (which subject this fact relates to)",
+      "detail": "string (2-4 sentences expanding on the fact with brief 'why'/'how' context — this is only shown after the user clicks to expand the fact, so it should add real explanation, not repeat the fact verbatim)"
+    }
+  ]
+}
+Return exactly 8 facts. Do not wrap output in markdown code blocks. Return only valid JSON.`;
+
+    const userPrompt = `Generate 8 short, interesting facts related to these subjects: ${subjectLine}.`;
+
+    const responseText = await aiService.generate(userPrompt, {
+      systemPrompt,
+      jsonMode: true,
+      temperature: 0.8,
+      maxTokens: 1024,
+    });
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    }
+
+    const facts = Array.isArray(parsed?.facts) ? parsed.facts : [];
+
+    // 6 hours — long enough to avoid regenerating on every dashboard visit,
+    // short enough that facts stay reasonably fresh as the user's roadmap changes.
+    await redisCache.setCache(cacheKey, JSON.stringify(facts), 21600);
+
+    res.json({ success: true, facts });
+  } catch (error) {
+    console.error('Facts Feed Error:', error);
+    res.status(500).json({ error: 'Internal Server Error generating facts feed.' });
+  }
+});
+
+// 8. Server-side Text-to-Speech — generates and saves one real MP3 file per
+// topic via google-tts-api. This is additive: the existing browser-voice
+// playback in AudioPlayerDock.tsx (with its sentence-highlight sync) still
+// works exactly as before and is untouched — this fills in the Topic.audioUrl
+// field, which already existed in the schema but nothing wrote to it yet.
+app.post('/api/tts/generate', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const { topicId } = req.body;
+
+    if (!topicId) {
+      return res.status(400).json({ error: 'Missing required parameter: topicId' });
+    }
+
+    // Ownership check: a topic belongs to a day, which belongs to a roadmap,
+    // which belongs to a user. Never generate or serve audio for someone
+    // else's topic just because they know its ID.
+    const topic = await db.topic.findUnique({
+      where: { id: topicId },
+      include: { day: { include: { roadmap: true } } },
+    });
+
+    if (!topic || topic.day.roadmap.userId !== userId) {
+      return res.status(404).json({ error: 'Topic not found.' });
+    }
+
+    if (topic.audioUrl) {
+      return res.json({ success: true, audioUrl: topic.audioUrl, cached: true });
+    }
+
+    let parsedContent: any;
+    try {
+      parsedContent = JSON.parse(topic.notesHtml);
+    } catch {
+      return res.status(500).json({ error: "Could not parse this topic's notes content." });
+    }
+
+    const textToSpeak = [
+      parsedContent.title,
+      parsedContent.introduction,
+      ...(parsedContent.contentBlocks || []).flatMap((b: any) => [b.heading, b.content]),
+      parsedContent.summary,
+    ].filter(Boolean).join('. ');
+
+    const audioUrl = await generateSpeechFile(textToSpeak, topic.id);
+
+    await db.topic.update({ where: { id: topic.id }, data: { audioUrl } });
+
+    res.json({ success: true, audioUrl, cached: false });
+  } catch (error) {
+    console.error('TTS Generate Error:', error);
+    res.status(500).json({ error: 'Internal Server Error generating audio.' });
+  }
+});
+
+// 9. Assistant Intent Classification — the AI Tutor chat box in
+// InteractiveAssistant.tsx sends every message here first. If the message is
+// really about mentorship, career guidance, or taking a quiz (not core
+// learning content), the frontend skips /api/generate entirely and instead
+// calls Person 1's /api/sso/handoff to send the user to EdMentor / EdCompass /
+// EdQuiz, already logged in. Reuses the same aiService.generate() pattern as
+// /api/facts: one short, constrained prompt, strict output, safe fallback.
+const VALID_INTENT_LABELS = ['learn', 'mentor', 'career', 'quiz'] as const;
+type IntentLabel = typeof VALID_INTENT_LABELS[number];
+
+app.post('/api/assistant/classify', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'Missing required parameter: message' });
+    }
+
+    const systemPrompt = `You classify a student's chat message into exactly ONE of these four labels:
+- "learn": a question about the subject matter itself (concepts, code, how something works)
+- "mentor": the student wants human mentorship, guidance from a mentor, or 1:1 help finding a mentor
+- "career": the student is asking about career paths, job readiness, resumes, or career counseling
+- "quiz": the student wants to be quizzed, tested, or asked practice questions on the topic
+
+Respond with ONLY the single label word — no punctuation, no explanation, no JSON. Just one of: learn, mentor, career, quiz`;
+
+    const responseText = await aiService.generate(message, {
+      systemPrompt,
+      jsonMode: false,
+      temperature: 0.1,
+      maxTokens: 10,
+    });
+
+    const cleaned = responseText.trim().toLowerCase().replace(/[^a-z]/g, '');
+    const label: IntentLabel = (VALID_INTENT_LABELS as readonly string[]).includes(cleaned)
+      ? (cleaned as IntentLabel)
+      : 'learn'; // Safe fallback: an ambiguous/unexpected model response never blocks the core tutor chat.
+
+    res.json({ success: true, label });
+  } catch (error) {
+    console.error('Assistant Classify Error:', error);
+    // On any failure, fall back to "learn" rather than surfacing an error —
+    // the chat box should always keep working even if classification breaks.
+    res.json({ success: true, label: 'learn' });
   }
 });
 

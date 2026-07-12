@@ -76,6 +76,12 @@ export default function PublicNavbar() {
               >
                 Dashboard
               </Link>
+              <Link
+                href="/hub"
+                className="px-4 py-2 bg-indigo-600/10 border border-indigo-500/30 hover:bg-indigo-600 hover:border-indigo-600 hover:shadow-lg hover:shadow-indigo-500/20 text-indigo-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Hub
+              </Link>
               <button
                 onClick={logout}
                 className="p-2 bg-slate-800/80 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-xl transition-all cursor-pointer"

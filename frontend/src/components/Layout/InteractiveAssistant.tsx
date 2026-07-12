@@ -2,6 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { MessageSquare, Users, Sparkles, Send, RefreshCw, ThumbsUp, HelpCircle } from 'lucide-react';
 import axios from 'axios';
+import { redirectToApp, appForIntent } from '@/lib/ssoHandoff';
+
+const APP_LABELS: Record<'mentor' | 'career' | 'quiz', string> = {
+  mentor: 'EdMentor',
+  career: 'EdCompass',
+  quiz: 'EdQuiz',
+};
 
 export const InteractiveAssistant: React.FC = () => {
   const { currentDay, activeMode } = useWorkspaceStore();
@@ -53,6 +60,46 @@ export const InteractiveAssistant: React.FC = () => {
     setIsSendingChat(true);
 
     try {
+      // Intent routing: classify before doing anything else. If the student
+      // is really asking for a mentor, career guidance, or a quiz, this is
+      // not a "learn" question — hand off to the matching sibling app
+      // (Person 1's /api/sso/handoff) instead of answering it here.
+      let intent: 'learn' | 'mentor' | 'career' | 'quiz' = 'learn';
+      try {
+        const classifyRes = await axios.post('/api/assistant/classify', { message: userMsg });
+        if (classifyRes.data?.success && classifyRes.data?.label) {
+          intent = classifyRes.data.label;
+        }
+      } catch (classifyErr) {
+        // If classification itself fails, don't block the tutor — just
+        // treat the message as a normal learning question.
+        console.error('Intent classification failed, defaulting to learn:', classifyErr);
+      }
+
+      if (intent !== 'learn') {
+        const appLabel = APP_LABELS[intent];
+        setChatMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `That sounds like a ${appLabel} question — taking you there now, you'll stay signed in.` },
+        ]);
+
+        // Quiz handoffs carry the current topic automatically so the user
+        // never has to re-type or re-select what they're studying.
+        const topic = intent === 'quiz' ? currentDay.title : undefined;
+        const ok = await redirectToApp(appForIntent(intent), topic);
+
+        if (!ok) {
+          setChatMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `Couldn't reach ${appLabel} right now — please try again in a moment.` },
+          ]);
+        }
+        // On success, window.location.href navigation is already underway;
+        // the outer finally below still re-enables the input, which is
+        // harmless since the browser is about to leave this page anyway.
+        return;
+      }
+
       const systemPrompt = chatType === 'focused'
         ? `You are an expert tutor. Answer questions about "${currentDay.title}" strictly using verified resources. Remain brief and technical.`
         : `You are an expert tutor. Answer questions about "${currentDay.title}" by connecting it to unrelated domains (e.g. cooking, space, sports) through creative analogies.`;
@@ -66,7 +113,7 @@ export const InteractiveAssistant: React.FC = () => {
       });
 
       // Simple mock fallback to prevent rate limits
-      const tutorReply = response.data.success 
+      const tutorReply = response.data.success
         ? `Based on search context: ${response.data.data.keystoneConcepts?.[0]?.description || 'Verified concept detail.'}`
         : 'Connecting resources...';
 
@@ -131,7 +178,7 @@ export const InteractiveAssistant: React.FC = () => {
   };
 
   return (
-    <aside className="w-80 border-l border-slate-800 bg-slate-900/40 flex flex-col h-[calc(100vh-80px)]">
+    <aside className="print:hidden w-80 border-l border-slate-800 bg-slate-900/40 flex flex-col h-[calc(100vh-80px)]">
       {/* Sidebar Tabs */}
       <div className="flex border-b border-slate-800">
         <button

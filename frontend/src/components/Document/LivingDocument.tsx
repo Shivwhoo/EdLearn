@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code } from 'lucide-react';
+import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code, Download } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Mermaid from './Mermaid';
 
@@ -62,6 +62,17 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
     setCopiedIndex(idx);
     triggerConfetti();
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  // Downloads/prints the current notes. Deliberately uses the browser's own
+  // print pipeline (destination "Save as PDF") rather than a client-side PDF
+  // library — no new dependency, and it handles the Mermaid diagram/code
+  // blocks correctly since it prints the real rendered DOM. The ".printable-notes"
+  // scoping and dark->light color reset live in globals.css; every other
+  // panel (nav, chat, audio dock) is hidden for print via Tailwind's
+  // `print:hidden` utility where it's rendered.
+  const handleDownloadPdf = () => {
+    window.print();
   };
 
   const renderParagraphWithHighlights = (paragraphText: string) => {
@@ -146,9 +157,9 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
   }
 
   return (
-    <div className={`flex-1 p-8 overflow-y-auto h-[calc(100vh-80px)] pb-32 bg-[#0F1117] ${focusMode ? 'focus-active' : ''}`}>
-      <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
-        
+    <div className={`flex-1 p-8 overflow-y-auto h-[calc(100vh-80px)] pb-32 bg-[#0F1117] print:h-auto print:overflow-visible print:bg-white print:p-0 ${focusMode ? 'focus-active' : ''}`}>
+      <div className="printable-notes max-w-3xl mx-auto space-y-8 animate-fade-in print:max-w-none print:p-8">
+
         {/* Header Section */}
         <div className="border-b border-slate-800 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -166,8 +177,8 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
             </h1>
           </div>
 
-          {/* Version Switcher & Regeneration actions */}
-          <div className="flex items-center space-x-2.5 self-end md:self-center">
+          {/* Version Switcher & Regeneration actions — hidden when printing */}
+          <div className="print:hidden flex items-center space-x-2.5 self-end md:self-center">
             {notesHistory.length > 0 && (
               <div className="flex items-center space-x-1.5">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Version:</span>
@@ -184,7 +195,16 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
                 </select>
               </div>
             )}
-            
+
+            <button
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/60 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+              title="Download as PDF or print (choose 'Save as PDF' as the destination)"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Download PDF</span>
+            </button>
+
             <button
               onClick={onTriggerGenerate}
               disabled={isLoadingContent}
@@ -268,7 +288,7 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
                     </div>
                     <button
                       onClick={() => handleCopyCode(block.codeExample, idx)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-md text-xs font-medium tracking-wide transition-all cursor-pointer"
+                      className="print:hidden flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-md text-xs font-medium tracking-wide transition-all cursor-pointer"
                     >
                       {copiedIndex === idx ? (
                         <>

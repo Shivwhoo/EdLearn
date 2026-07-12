@@ -69,7 +69,7 @@ export const LeftNavigationPanel: React.FC = () => {
   if (!roadmap) return null;
 
   return (
-    <aside className="w-80 border-r border-slate-800 bg-slate-900/60 p-6 flex flex-col justify-between h-[calc(100vh-80px)] overflow-y-auto">
+    <aside className="print:hidden w-80 border-r border-slate-800 bg-slate-900/60 p-6 flex flex-col justify-between h-[calc(100vh-80px)] overflow-y-auto">
       <div>
         <div className="flex items-center space-x-2 mb-8">
           <GraduationCap className="h-8 w-8 text-indigo-500" />

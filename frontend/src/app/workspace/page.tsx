@@ -7,8 +7,9 @@ import LeftNavigationPanel from '@/components/Layout/LeftNavigationPanel';
 import InteractiveAssistant from '@/components/Layout/InteractiveAssistant';
 import LivingDocument from '@/components/Document/LivingDocument';
 import { AudioPlayerDock } from '@/components/Audio/AudioPlayerDock';
-import { ShieldAlert, BookOpen, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShieldAlert, BookOpen, AlertCircle, RefreshCw, Users, Compass, HelpCircle } from 'lucide-react';
 import axios from 'axios';
+import { redirectToApp, SsoApp } from '@/lib/ssoHandoff';
 
 export default function WorkspacePage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function WorkspacePage() {
 
   const [isMounted, setIsMounted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [handoffLoading, setHandoffLoading] = useState<SsoApp | null>(null);
   const sentencesRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -88,6 +90,23 @@ export default function WorkspacePage() {
     }
   };
 
+  // Shortcut buttons ("Find a Mentor" / "Career Guidance" / "Take a Quiz") —
+  // same SSO handoff the AI Tutor chat uses when it detects one of these
+  // intents automatically. The Quiz shortcut passes the current topic
+  // automatically since EdLearn already knows it (currentDay.title) — the
+  // user never has to say or pick a topic.
+  const handleShortcut = async (app: SsoApp, topic?: string) => {
+    if (handoffLoading) return;
+    setHandoffLoading(app);
+    setErrorMsg('');
+    const ok = await redirectToApp(app, topic);
+    if (!ok) {
+      setErrorMsg(`Couldn't reach that app right now — please try again in a moment.`);
+      setHandoffLoading(null);
+    }
+    // On success, the browser is navigating away — no need to reset state.
+  };
+
   if (!isMounted || restoringSession || !roadmap || !currentDay) {
     return (
       <div className="min-h-screen bg-[#0F1117] flex items-center justify-center text-slate-400">
@@ -98,9 +117,9 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className="h-screen bg-[#0F1117] flex flex-col justify-between overflow-hidden">
-      {/* Top Banner Control Bar */}
-      <header className="h-14 border-b border-slate-800 bg-slate-900/60 px-6 flex items-center justify-between z-10">
+    <div className="h-screen bg-[#0F1117] flex flex-col justify-between overflow-hidden print:h-auto print:overflow-visible">
+      {/* Top Banner Control Bar — hidden entirely when printing/exporting to PDF */}
+      <header className="print:hidden h-14 border-b border-slate-800 bg-slate-900/60 px-6 flex items-center justify-between z-10">
         <div className="flex items-center space-x-3">
           <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded text-xs font-semibold">
             Day {currentDay.dayNumber}
@@ -119,6 +138,39 @@ export default function WorkspacePage() {
               <span>{errorMsg}</span>
             </div>
           )}
+
+          {/* Cross-app shortcuts — same SSO handoff the AI Tutor chat uses
+              automatically when it detects one of these intents in free text. */}
+          <div className="flex items-center space-x-1.5 pr-4 border-r border-slate-800">
+            <button
+              onClick={() => handleShortcut('edmentor')}
+              disabled={handoffLoading !== null}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors cursor-pointer"
+              title="Find a Mentor on EdMentor"
+            >
+              {handoffLoading === 'edmentor' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
+              <span className="hidden lg:inline">Find a Mentor</span>
+            </button>
+            <button
+              onClick={() => handleShortcut('edcompass')}
+              disabled={handoffLoading !== null}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors cursor-pointer"
+              title="Career Guidance on EdCompass"
+            >
+              {handoffLoading === 'edcompass' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Compass className="h-3.5 w-3.5" />}
+              <span className="hidden lg:inline">Career Guidance</span>
+            </button>
+            <button
+              onClick={() => handleShortcut('edquiz', currentDay.title)}
+              disabled={handoffLoading !== null}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors cursor-pointer"
+              title={`Take a Quiz on "${currentDay.title}" on EdQuiz`}
+            >
+              {handoffLoading === 'edquiz' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <HelpCircle className="h-3.5 w-3.5" />}
+              <span className="hidden lg:inline">Take a Quiz</span>
+            </button>
+          </div>
+
           <button
             onClick={handleGenerateContent}
             disabled={isLoadingContent}
@@ -130,8 +182,10 @@ export default function WorkspacePage() {
         </div>
       </header>
 
-      {/* Main Panel grid */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* Main Panel grid — must stop clipping (overflow-hidden) during print,
+          otherwise only the visible viewport slice of the notes gets exported
+          to PDF instead of the full scrollable document. */}
+      <div className="flex flex-1 overflow-hidden print:h-auto print:overflow-visible print:flex-col">
         {/* Left pane */}
         <LeftNavigationPanel />
 
