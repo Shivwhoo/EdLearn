@@ -11,12 +11,12 @@ import { connectMongo } from './lib/mongodb';
 import Thread from './lib/models/Thread';
 import { v4 as uuidv4 } from 'uuid';
 import MarketDemand from './lib/models/MarketDemand';
-import { startMarketDemandCron } from './lib/cronScraper';
+import { startMarketWorker } from './lib/queues/marketQueue';
 import { hashPassword, verifyPassword, generateToken } from './lib/auth';
 import { authenticate, AuthenticatedRequest } from './middleware/auth';
 import { redisCache } from './lib/redis';
 import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
-import { generateSpeechFile } from './lib/tts';
+import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1023,6 +1023,39 @@ app.post('/api/tts/generate', authenticate, async (req: express.Request, res: ex
   }
 });
 
+app.post('/api/tts/podcast', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const { topicId, script } = req.body;
+
+    if (!topicId || !Array.isArray(script)) {
+      return res.status(400).json({ error: 'Missing required parameters: topicId or script array' });
+    }
+
+    const topic = await db.topic.findUnique({
+      where: { id: topicId },
+      include: { day: { include: { roadmap: true } } },
+    });
+
+    if (!topic || topic.day.roadmap.userId !== userId) {
+      return res.status(404).json({ error: 'Topic not found.' });
+    }
+
+    if (topic.audioUrl && topic.audioUrl.includes('_podcast')) {
+      return res.json({ success: true, audioUrl: topic.audioUrl, cached: true });
+    }
+
+    const audioUrl = await generatePodcastAudio(script, topic.id);
+
+    await db.topic.update({ where: { id: topic.id }, data: { audioUrl } });
+
+    res.json({ success: true, audioUrl, cached: false });
+  } catch (error) {
+    console.error('TTS Podcast Error:', error);
+    res.status(500).json({ error: 'Internal Server Error generating podcast audio.' });
+  }
+});
+
 // 9. Assistant Intent Classification — the AI Tutor chat box in
 // InteractiveAssistant.tsx sends every message here first. If the message is
 // really about mentorship, career guidance, or taking a quiz (not core
@@ -1077,7 +1110,7 @@ async function startServer() {
   app.listen(PORT, () => {
     console.log(`Backend server successfully listening on port ${PORT}`);
     // Start the background cron updater
-    startMarketDemandCron();
+    startMarketWorker();
   });
 }
 

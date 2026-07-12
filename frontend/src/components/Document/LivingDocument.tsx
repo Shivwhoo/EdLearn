@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code, Download } from 'lucide-react';
+import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code, Download, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Mermaid from './Mermaid';
-
+import { PodcastPlayer } from './PodcastPlayer';
+import { exportNotesPdf } from '@/lib/exportPdf';
 interface LivingDocumentProps {
   onTriggerGenerate: () => void;
   sentenceRef: React.MutableRefObject<string[]>;
@@ -64,15 +65,23 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Downloads/prints the current notes. Deliberately uses the browser's own
-  // print pipeline (destination "Save as PDF") rather than a client-side PDF
-  // library — no new dependency, and it handles the Mermaid diagram/code
-  // blocks correctly since it prints the real rendered DOM. The ".printable-notes"
-  // scoping and dark->light color reset live in globals.css; every other
-  // panel (nav, chat, audio dock) is hidden for print via Tailwind's
-  // `print:hidden` utility where it's rendered.
-  const handleDownloadPdf = () => {
-    window.print();
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!generatedContent || isPdfExporting) return;
+    setIsPdfExporting(true);
+    try {
+      await exportNotesPdf({
+        content: generatedContent,
+        topicTitle: generatedContent?.title || currentDay?.title || 'Study Notes',
+        dayNumber: currentDay?.dayNumber ?? 1,
+        difficulty: generatedContent?.difficulty || 'Intermediate',
+      });
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setIsPdfExporting(false);
+    }
   };
 
   const renderParagraphWithHighlights = (paragraphText: string) => {
@@ -198,11 +207,12 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
 
             <button
               onClick={handleDownloadPdf}
-              className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/60 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
-              title="Download as PDF or print (choose 'Save as PDF' as the destination)"
+              disabled={isPdfExporting}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/60 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              title="Download as PDF"
             >
-              <Download className="h-3.5 w-3.5" />
-              <span>Download PDF</span>
+              {isPdfExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              <span>{isPdfExporting ? 'Exporting...' : 'Download PDF'}</span>
             </button>
 
             <button
@@ -217,8 +227,19 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
           </div>
         </div>
 
-        {/* Introduction */}
-        <div className="p-6 bg-gradient-to-br from-slate-900/80 to-slate-800/30 border border-slate-800/80 rounded-2xl flex gap-4 items-start shadow-sm">
+        {/* Main Content Body */}
+        {generatedContent.script ? (
+          <div className="pt-4 pb-20">
+            <PodcastPlayer 
+              topicId={currentDay?.id || 'demo'} 
+              script={generatedContent.script} 
+              audioUrl={generatedContent.audioUrl}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Introduction */}
+            <div className="p-6 bg-gradient-to-br from-slate-900/80 to-slate-800/30 border border-slate-800/80 rounded-2xl flex gap-4 items-start shadow-sm">
           <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400 flex-shrink-0">
             <BookOpen className="h-6 w-6" />
           </div>
@@ -351,6 +372,8 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
               ))}
             </div>
           </div>
+        )}
+          </>
         )}
 
       </div>

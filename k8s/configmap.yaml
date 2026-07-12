@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edlearn-config
+  namespace: edlearn
+data:
+  NODE_ENV: "production"
+  PORT: "5000"
+  FRONTEND_URL: "http://edlearn.local" # Adjust based on actual domain
