@@ -9,7 +9,6 @@ if (!cached) {
 }
 
 export async function connectMongo() {
-  console.log('Connecting to MongoDB at:', MONGODB_URI);
   if (cached.conn) {
     return cached.conn;
   }

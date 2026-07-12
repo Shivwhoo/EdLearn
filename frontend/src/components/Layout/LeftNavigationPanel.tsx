@@ -28,8 +28,12 @@ export const LeftNavigationPanel: React.FC = () => {
       setModalError('Please fill in all fields.');
       return;
     }
-    if (newPassword.length < 6) {
-      setModalError('New password must be at least 6 characters long.');
+    if (newPassword.length < 8) {
+      setModalError('New password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setModalError('New password must contain at least one letter and one number.');
       return;
     }
 
@@ -215,7 +219,7 @@ export const LeftNavigationPanel: React.FC = () => {
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="Min 8 chars, 1 letter, 1 number"
                   className="w-full bg-slate-955/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 transition-colors"
                 />
               </div>

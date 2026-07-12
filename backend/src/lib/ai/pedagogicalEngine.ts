@@ -154,6 +154,30 @@ ${contextString}
         userPrompt: `Generate a 5-question Gap Finder quiz for "${topic}" at the ${difficulty} level.`,
       };
 
+    case 7: // Duo Podcast (Conversational)
+      return {
+        jsonMode: true,
+        systemPrompt: `You are an educational podcast scriptwriter. Generate an engaging, conversational podcast episode about the requested topic.
+There are two speakers: a curious Host who guides the flow and asks insightful questions, and an Expert who explains the concepts clearly using analogies.
+The script should consist of 12 to 16 alternating lines in total.
+You must return your output strictly in JSON format matching the schema below.
+Schema:
+{
+  "title": "string",
+  "script": [
+    {
+      "speaker": "Host", // strictly "Host" or "Expert"
+      "line": "string"
+    }
+  ],
+  "sources": [{"label": "string", "url": "string"}]
+}
+Reference Context:
+${contextString}
+`,
+        userPrompt: `Generate a Duo Podcast script for "${topic}" at the ${difficulty} level.`,
+      };
+
     case 6: // Feynman Learning Test (Interactive Adversarial Listener)
     default:
       return {

@@ -66,14 +66,3 @@ export async function runMarketDemandScraper() {
   }
 }
 
-export function startMarketDemandCron() {
-  // Execute once on startup
-  runMarketDemandScraper();
-  
-  // Set execution loop (every 6 hours)
-  const SIX_HOURS = 6 * 60 * 60 * 1000;
-  setInterval(() => {
-    runMarketDemandScraper();
-  }, SIX_HOURS);
-}
-export default startMarketDemandCron;

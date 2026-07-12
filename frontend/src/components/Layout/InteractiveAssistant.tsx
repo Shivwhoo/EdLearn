@@ -11,7 +11,7 @@ const APP_LABELS: Record<'mentor' | 'career' | 'quiz', string> = {
 };
 
 export const InteractiveAssistant: React.FC = () => {
-  const { currentDay, activeMode } = useWorkspaceStore();
+  const { currentDay, activeMode, user } = useWorkspaceStore();
   const [activeTab, setActiveTab] = useState<'chat' | 'forum'>('chat');
   const [chatType, setChatType] = useState<'focused' | 'cross'>('focused');
   
@@ -134,8 +134,8 @@ export const InteractiveAssistant: React.FC = () => {
         topicId: currentDay.id,
         title: newThreadTitle,
         content: newThreadContent,
-        authorName: 'Alex Student',
-        userId: 'user_dummy_123',
+        // authorName comes from the JWT on the backend; send display name as hint
+        authorName: user?.fullName || 'Student',
       });
       setNewThreadTitle('');
       setNewThreadContent('');
@@ -154,8 +154,7 @@ export const InteractiveAssistant: React.FC = () => {
         action: 'createComment',
         threadId,
         content: commentContent,
-        authorName: 'Alex Student',
-        userId: 'user_dummy_123',
+        authorName: user?.fullName || 'Student',
       });
       setCommentInputs({ ...commentInputs, [threadId]: '' });
       fetchForumThreads();
@@ -169,7 +168,7 @@ export const InteractiveAssistant: React.FC = () => {
       await axios.post('/api/doubt', {
         action: 'upvoteThread',
         threadId,
-        userId: 'user_dummy_123',
+        // userId is read from JWT on the backend; no need to send it
       });
       fetchForumThreads();
     } catch (e) {

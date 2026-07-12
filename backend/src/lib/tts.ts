@@ -33,7 +33,16 @@ if (!fs.existsSync(AUDIO_DIR)) {
  * works correctly in a standard <audio> element.
  */
 export async function generateSpeechFile(text: string, topicId: string): Promise<string> {
-  const cleanText = text.replace(/\s+/g, ' ').trim().slice(0, 5000); // sanity cap on input size
+  // Strip HTML tags and markdown syntax before synthesising speech so the
+  // audio player doesn't literally say "less-than p greater-than" etc.
+  const plainText = text
+    .replace(/<[^>]+>/g, ' ')          // HTML tags
+    .replace(/[*_`#~>]+/g, ' ')        // Markdown punctuation
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Markdown links → label only
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const cleanText = plainText.slice(0, 5000); // sanity cap on input size
   if (!cleanText) {
     throw new Error('No text provided to synthesize.');
   }
@@ -56,6 +65,53 @@ export async function generateSpeechFile(text: string, topicId: string): Promise
 
   const combined = Buffer.concat(buffers);
   const filename = `${topicId}.mp3`;
+  const filePath = path.join(AUDIO_DIR, filename);
+  fs.writeFileSync(filePath, combined);
+
+  return `/api/tts/audio/${filename}`;
+}
+
+/**
+ * Generates an MP3 file for a podcast script by stitching alternating 
+ * voices together based on the speaker role.
+ * Host gets standard 'en' (en-US), Expert gets 'en-GB' for contrast.
+ */
+export async function generatePodcastAudio(
+  lines: { speaker: string; line: string }[],
+  topicId: string
+): Promise<string> {
+  const buffers: Buffer[] = [];
+
+  for (const turn of lines) {
+    const plainText = turn.line
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/[*_`#~>]+/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+      
+    if (!plainText) continue;
+
+    const lang = turn.speaker.toLowerCase() === 'host' ? 'en' : 'en-GB';
+    
+    // Some lines might be over 200 chars, so use getAllAudioUrls
+    const chunks = await (googleTTS as any).getAllAudioUrls(plainText, {
+      lang,
+      slow: false,
+      host: 'https://translate.google.com',
+    });
+
+    for (const chunk of chunks) {
+      const response = await axios.get(chunk.url, { responseType: 'arraybuffer' });
+      buffers.push(Buffer.from(response.data));
+    }
+    
+    // Optionally add a slight pause between speakers (silence buffer), but 
+    // for simple concatenation, TTS usually has enough padding natively.
+  }
+
+  const combined = Buffer.concat(buffers);
+  const filename = `${topicId}_podcast.mp3`;
   const filePath = path.join(AUDIO_DIR, filename);
   fs.writeFileSync(filePath, combined);
 
