@@ -94,3 +94,35 @@ body {
   opacity: 0.35;
   filter: blur(0.5px);
 }
+
+/* Print-friendly study notes.
+   Chrome (sidebars, header, audio dock, buttons) is hidden per-element via
+   Tailwind's `print:hidden` utility where it's used. This block only resets
+   the notes area itself from the dark theme to a readable light document,
+   since doing that with per-element Tailwind overrides would touch dozens
+   of lines across LivingDocument.tsx for no benefit. */
+@media print {
+  .printable-notes {
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  .printable-notes * {
+    color: #111 !important;
+    background: transparent !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .printable-notes a {
+    color: #1d4ed8 !important;
+    text-decoration: underline !important;
+  }
+
+  .printable-notes pre,
+  .printable-notes code {
+    background: #f3f4f6 !important;
+    color: #111 !important;
+  }
+}
