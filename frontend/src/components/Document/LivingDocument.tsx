@@ -239,30 +239,30 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
         ) : (
           <>
             {/* Introduction */}
-            <div className="p-6 bg-gradient-to-br from-slate-900/80 to-slate-800/30 border border-slate-800/80 rounded-2xl flex gap-4 items-start shadow-sm">
-          <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400 flex-shrink-0">
-            <BookOpen className="h-6 w-6" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400">Introduction</h3>
-            <p className="text-sm leading-relaxed text-slate-300">
-              {renderParagraphWithHighlights(generatedContent.introduction)}
-            </p>
-          </div>
-        </div>
+            <div className="p-8 bg-white/5 border border-white/5 rounded-2xl flex gap-6 items-start">
+              <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 flex-shrink-0">
+                <BookOpen className="h-6 w-6" />
+              </div>
+              <div className="space-y-3 pt-1">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-400">Introduction</h3>
+                <p className="text-base leading-relaxed text-slate-300">
+                  {renderParagraphWithHighlights(generatedContent.introduction)}
+                </p>
+              </div>
+            </div>
 
         {/* Outline / Concepts List */}
         {generatedContent.outline && generatedContent.outline.length > 0 && (
-          <div className="p-5 bg-slate-900/40 border border-slate-800/60 rounded-2xl space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <List className="h-4 w-4 text-indigo-500" />
+          <div className="p-6 bg-transparent border border-white/10 rounded-2xl space-y-4 mt-6">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+              <List className="h-5 w-5 text-indigo-500" />
               Core Concepts Covered
             </h3>
-            <div className="grid md:grid-cols-2 gap-3 pt-1">
+            <div className="grid md:grid-cols-2 gap-4 pt-2">
               {generatedContent.outline.map((item: string, idx: number) => (
-                <div key={idx} className="flex items-center space-x-3 p-3 bg-slate-800/20 border border-slate-700/30 rounded-xl text-slate-300 hover:border-slate-700 transition-colors">
-                  <span className="h-6 w-6 bg-indigo-600/15 text-indigo-400 border border-indigo-500/20 rounded-full flex items-center justify-center text-xs font-mono font-bold">{idx + 1}</span>
-                  <span className="text-xs font-medium text-slate-300">{item}</span>
+                <div key={idx} className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl text-slate-300 hover:bg-white/10 transition-colors">
+                  <span className="h-7 w-7 bg-indigo-500/10 text-indigo-400 rounded-full flex items-center justify-center text-sm font-mono font-bold">{idx + 1}</span>
+                  <span className="text-sm font-medium text-slate-200">{item}</span>
                 </div>
               ))}
             </div>
@@ -275,17 +275,17 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
         )}
 
         {/* Core Lesson Content Blocks */}
-        <div className="space-y-8 pt-4">
+        <div className="space-y-12 pt-8">
           {(generatedContent.contentBlocks || []).map((block: any, idx: number) => (
-            <div key={idx} className="space-y-4 group">
+            <div key={idx} className="space-y-5 group">
               <div className="flex items-center space-x-3">
                 <div className="h-2 w-2 rounded-full bg-indigo-500 group-hover:scale-125 transition-transform"></div>
-                <h2 className="text-xl font-bold text-slate-200 tracking-tight">
+                <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
                   {block.heading}
                 </h2>
               </div>
               
-              <div className="text-sm leading-relaxed text-slate-300 space-y-4 pl-5">
+              <div className="text-[17px] leading-relaxed text-slate-300 space-y-5 pl-5">
                 {(block.content || '').split('\n\n').map((paragraph: string, pIdx: number) => (
                   <p key={pIdx}>
                     {renderParagraphWithHighlights(paragraph)}
@@ -295,7 +295,7 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
 
               {/* Optional Code Example Code Editor block */}
               {block.codeExample && (
-                <div className="ml-5 rounded-xl border border-slate-800/80 overflow-hidden shadow-xl">
+                <div className="ml-5 rounded-xl border border-white/5 bg-[#1A1A1A] overflow-hidden mt-4">
                   {/* IDE header */}
                   <div className="bg-[#121824] px-4 py-2.5 flex items-center justify-between border-b border-slate-800/50">
                     <div className="flex items-center space-x-2">

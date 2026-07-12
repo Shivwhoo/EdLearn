@@ -7,7 +7,7 @@ import LeftNavigationPanel from '@/components/Layout/LeftNavigationPanel';
 import InteractiveAssistant from '@/components/Layout/InteractiveAssistant';
 import LivingDocument from '@/components/Document/LivingDocument';
 import { AudioPlayerDock } from '@/components/Audio/AudioPlayerDock';
-import { ShieldAlert, BookOpen, AlertCircle, RefreshCw, Users, Compass, HelpCircle } from 'lucide-react';
+import { Compass, RefreshCw, AlertCircle, Users, HelpCircle, Menu, MessageSquare } from 'lucide-react';
 import axios from 'axios';
 import { redirectToApp, SsoApp } from '@/lib/ssoHandoff';
 
@@ -32,6 +32,10 @@ export default function WorkspacePage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [handoffLoading, setHandoffLoading] = useState<SsoApp | null>(null);
   const sentencesRef = useRef<string[]>([]);
+  
+  // Zen mode states
+  const [isNavOpen, setIsNavOpen] = useState(true);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -119,16 +123,24 @@ export default function WorkspacePage() {
   return (
     <div className="h-screen bg-[#0F1117] flex flex-col justify-between overflow-hidden print:h-auto print:overflow-visible">
       {/* Top Banner Control Bar — hidden entirely when printing/exporting to PDF */}
-      <header className="print:hidden h-14 border-b border-slate-800 bg-slate-900/60 px-6 flex items-center justify-between z-10">
-        <div className="flex items-center space-x-3">
-          <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded text-xs font-semibold">
-            Day {currentDay.dayNumber}
-          </span>
-          <h2 className="text-sm font-bold text-slate-200">{currentDay.title}</h2>
-          <span className="text-slate-600">|</span>
-          <span className="text-xs text-slate-400">
-            Goal: <span className="text-slate-300 font-semibold">{userProfile?.careerGoal}</span>
-          </span>
+      <header className="print:hidden h-14 border-b border-[#2A2A2A] bg-[#121212]/80 backdrop-blur-md px-6 flex items-center justify-between z-20">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => setIsNavOpen(!isNavOpen)}
+            className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center space-x-3">
+            <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded text-xs font-semibold">
+              Day {currentDay.dayNumber}
+            </span>
+            <h2 className="text-sm font-bold text-slate-200">{currentDay.title}</h2>
+            <span className="text-slate-600">|</span>
+            <span className="text-xs text-slate-400">
+              <span className="text-slate-300 font-semibold">{userProfile?.careerGoal}</span>
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -139,45 +151,20 @@ export default function WorkspacePage() {
             </div>
           )}
 
-          {/* Cross-app shortcuts — same SSO handoff the AI Tutor chat uses
-              automatically when it detects one of these intents in free text. */}
-          <div className="flex items-center space-x-1.5 pr-4 border-r border-slate-800">
-            <button
-              onClick={() => handleShortcut('edmentor')}
-              disabled={handoffLoading !== null}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors cursor-pointer"
-              title="Find a Mentor on EdMentor"
-            >
-              {handoffLoading === 'edmentor' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
-              <span className="hidden lg:inline">Find a Mentor</span>
-            </button>
-            <button
-              onClick={() => handleShortcut('edcompass')}
-              disabled={handoffLoading !== null}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors cursor-pointer"
-              title="Career Guidance on EdCompass"
-            >
-              {handoffLoading === 'edcompass' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Compass className="h-3.5 w-3.5" />}
-              <span className="hidden lg:inline">Career Guidance</span>
-            </button>
-            <button
-              onClick={() => handleShortcut('edquiz', currentDay.title)}
-              disabled={handoffLoading !== null}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-800 disabled:opacity-50 border border-slate-700 text-slate-300 rounded text-xs font-medium transition-colors cursor-pointer"
-              title={`Take a Quiz on "${currentDay.title}" on EdQuiz`}
-            >
-              {handoffLoading === 'edquiz' ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <HelpCircle className="h-3.5 w-3.5" />}
-              <span className="hidden lg:inline">Take a Quiz</span>
-            </button>
-          </div>
-
           <button
             onClick={handleGenerateContent}
             disabled={isLoadingContent}
-            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded text-xs font-bold transition-all cursor-pointer"
+            className="px-4 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 disabled:opacity-50 rounded text-xs font-bold transition-all cursor-pointer"
             title="Generate a fresh new version of the study notes for this day"
           >
             {isLoadingContent ? 'Generating...' : '+ New Version'}
+          </button>
+          <button 
+            onClick={() => setIsAssistantOpen(!isAssistantOpen)}
+            className={`p-1.5 rounded-md transition-colors ${isAssistantOpen ? 'bg-indigo-500/20 text-indigo-400' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            title="Toggle Assistant"
+          >
+            <MessageSquare className="h-5 w-5" />
           </button>
         </div>
       </header>
@@ -185,18 +172,30 @@ export default function WorkspacePage() {
       {/* Main Panel grid — must stop clipping (overflow-hidden) during print,
           otherwise only the visible viewport slice of the notes gets exported
           to PDF instead of the full scrollable document. */}
-      <div className="flex flex-1 overflow-hidden print:h-auto print:overflow-visible print:flex-col">
-        {/* Left pane */}
-        <LeftNavigationPanel />
+      <div className="flex flex-1 overflow-hidden print:h-auto print:overflow-visible print:flex-col relative">
+        {/* Left pane - Now a drawer on smaller screens or collapsible */}
+        <div className={`transition-all duration-300 ease-in-out border-r border-[#2A2A2A] bg-[#121212] z-10 ${isNavOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full absolute h-full'}`}>
+          <div className="w-80 h-full">
+            <LeftNavigationPanel />
+          </div>
+        </div>
 
         {/* Center Canvas */}
-        <LivingDocument
-          onTriggerGenerate={handleGenerateContent}
-          sentenceRef={sentencesRef}
-        />
+        <div className="flex-1 overflow-hidden flex flex-col items-center">
+          <div className="w-full max-w-5xl h-full flex flex-col">
+            <LivingDocument
+              onTriggerGenerate={handleGenerateContent}
+              sentenceRef={sentencesRef}
+            />
+          </div>
+        </div>
 
-        {/* Right pane */}
-        <InteractiveAssistant />
+        {/* Right pane - Overlay or collapsible */}
+        <div className={`transition-all duration-300 ease-in-out border-l border-[#2A2A2A] bg-[#121212] z-10 ${isAssistantOpen ? 'w-96 translate-x-0' : 'w-0 translate-x-full absolute right-0 h-full'}`}>
+          <div className="w-96 h-full">
+            <InteractiveAssistant />
+          </div>
+        </div>
       </div>
 
       {/* Bottom Sticky Player */}
