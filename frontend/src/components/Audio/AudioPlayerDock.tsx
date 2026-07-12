@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { Play, Pause, RotateCcw, Volume2, User, Eye, EyeOff, Music, RefreshCw } from 'lucide-react';
-import axios from 'axios';
+import { Play, Pause, RotateCcw, Volume2, User, Eye, EyeOff } from 'lucide-react';
 
 interface AudioPlayerDockProps {
   sentences: string[];
@@ -13,7 +12,6 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
     activeSentenceIndex,
     speechRate,
     focusMode,
-    activeVersionId,
     setPlaying,
     setActiveSentenceIndex,
     setSpeechRate,
@@ -24,35 +22,6 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
-
-  // Real, server-generated audio (google-tts-api) — additive to the browser-
-  // voice playback above, not a replacement. activeVersionId is the current
-  // Topic's database id (see workspaceStore's fetchNotesHistory/setActiveVersion).
-  const [studioAudioUrl, setStudioAudioUrl] = useState<string | null>(null);
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-  const studioAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Reset the studio audio player whenever the user switches to a different
-  // notes version — a stale audioUrl from the previous topic must not persist.
-  useEffect(() => {
-    setStudioAudioUrl(null);
-  }, [activeVersionId]);
-
-  const handleGenerateStudioAudio = async () => {
-    if (!activeVersionId || isGeneratingAudio) return;
-    setIsGeneratingAudio(true);
-    try {
-      const res = await axios.post('/api/tts/generate', { topicId: activeVersionId });
-      if (res.data?.success) {
-        setStudioAudioUrl(res.data.audioUrl);
-        setTimeout(() => studioAudioRef.current?.play(), 100);
-      }
-    } catch (err) {
-      console.error('Failed to generate studio audio:', err);
-    } finally {
-      setIsGeneratingAudio(false);
-    }
-  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -232,27 +201,6 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
               ))}
           </select>
         </div>
-
-        {/* Real, server-generated audio — separate from the browser-voice
-            controls above on purpose, so existing sentence-sync playback
-            keeps working exactly as it did before this was added. */}
-        {studioAudioUrl ? (
-          <audio ref={studioAudioRef} src={studioAudioUrl} controls className="h-8 max-w-[160px]" />
-        ) : (
-          <button
-            onClick={handleGenerateStudioAudio}
-            disabled={isGeneratingAudio || !activeVersionId}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 disabled:opacity-50 text-slate-300 rounded text-xs font-medium transition-colors"
-            title="Generate a real downloadable audio file for these notes"
-          >
-            {isGeneratingAudio ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Music className="h-4 w-4" />
-            )}
-            <span>{isGeneratingAudio ? 'Generating...' : 'Studio Audio'}</span>
-          </button>
-        )}
       </div>
     </div>
   );

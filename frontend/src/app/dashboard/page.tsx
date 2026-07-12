@@ -33,11 +33,12 @@ export default function DashboardPage() {
   const [trends, setTrends] = useState<any[]>([]);
   const [isTrendsLoading, setIsTrendsLoading] = useState(true);
 
-  // "Did You Know?" personalized facts feed state
+  // "Did You Know?" personalized facts feed state — shows one fact at a time
+  // from the fetched batch, rotating to the next one automatically.
   const [facts, setFacts] = useState<any[]>([]);
   const [isFactsLoading, setIsFactsLoading] = useState(true);
-  const [isFactsRefreshing, setIsFactsRefreshing] = useState(false);
-  const [expandedFactIndex, setExpandedFactIndex] = useState<number | null>(null);
+  const [currentFactIndex, setCurrentFactIndex] = useState(0);
+  const [isFactExpanded, setIsFactExpanded] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -107,6 +108,8 @@ export default function DashboardPage() {
         const res = await axios.get('/api/facts');
         if (res.data?.success) {
           setFacts(res.data.facts || []);
+          setCurrentFactIndex(0);
+          setIsFactExpanded(false);
         }
       } catch (err) {
         console.warn('Failed to load facts feed:', err);
@@ -118,20 +121,20 @@ export default function DashboardPage() {
     fetchFacts();
   }, [token, isMounted]);
 
-  const handleLoadMoreFacts = async () => {
-    if (isFactsRefreshing) return;
-    setIsFactsRefreshing(true);
-    try {
-      const res = await axios.get('/api/facts?fresh=true');
-      if (res.data?.success) {
-        setFacts((prev) => [...prev, ...(res.data.facts || [])]);
-      }
-    } catch (err) {
-      console.warn('Failed to load more facts:', err);
-    } finally {
-      setIsFactsRefreshing(false);
-    }
-  };
+  // Rotate to the next fact in the batch every 10 minutes. Loops back to the
+  // start once it's cycled through everything fetched — no extra API calls,
+  // just cycling the batch already returned by GET /api/facts above.
+  useEffect(() => {
+    if (facts.length < 2) return;
+
+    const rotationMs = 10 * 60 * 1000;
+    const interval = setInterval(() => {
+      setIsFactExpanded(false);
+      setCurrentFactIndex((prev) => (prev + 1) % facts.length);
+    }, rotationMs);
+
+    return () => clearInterval(interval);
+  }, [facts.length]);
 
   // Open an active roadmap in the workspace
   const handleOpenRoadmap = async (targetRoadmap: any) => {
@@ -176,6 +179,8 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const currentFact = facts[currentFactIndex] || null;
 
   return (
     <main className="relative min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 p-6 md:p-12 pt-32 md:pt-36">
@@ -301,43 +306,47 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Right Panel - History of generated notes */}
+            {/* Right Panel - "Did You Know?" — one fact at a time, rotates every
+                10 minutes (see the rotation useEffect above). Was Study Guide
+                History; that moved to the full-width slot below. */}
             <div className="space-y-6">
               <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-                <History className="h-5 w-5 text-amber-500" />
-                <span>Study Guide History</span>
+                <Lightbulb className="h-5 w-5 text-amber-400" />
+                <span>Did You Know?</span>
               </h2>
 
-              {historyNotes.length === 0 ? (
+              {isFactsLoading ? (
+                <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl flex items-center justify-center text-slate-500 text-xs gap-2 py-12">
+                  <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
+                  <span>Generating personalized facts...</span>
+                </div>
+              ) : !currentFact ? (
                 <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl text-center text-slate-500 py-12 text-xs">
-                  No note runs generated yet. When you compile study notes, they will appear here.
+                  No facts available yet — generate a learning path to see facts tailored to your subjects.
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {historyNotes.map((n) => (
-                    <div
-                      key={n.id}
-                      className="bg-slate-900/50 border border-slate-800 hover:border-slate-700 rounded-xl p-4.5 hover:bg-slate-900/90 transition-all flex justify-between items-center gap-4 group"
-                    >
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <h4 className="text-xs font-bold text-slate-300 truncate">{n.title}</h4>
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {n.day?.roadmap?.title || 'Custom Path'} • Day {n.day?.dayNumber}
-                        </p>
-                        <p className="text-[11px] text-slate-600">
-                          Generated: {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
+                <div
+                  onClick={() => setIsFactExpanded((prev) => !prev)}
+                  className="bg-slate-900/40 border border-slate-800 hover:border-amber-500/30 rounded-2xl p-6 space-y-3 cursor-pointer transition-colors"
+                >
+                  <p className="text-sm text-slate-200 leading-relaxed font-semibold">{currentFact.fact}</p>
 
-                      <button
-                        onClick={() => handleOpenHistoricalNote(n)}
-                        className="p-2 bg-indigo-600/10 border border-indigo-500/20 group-hover:bg-indigo-600 group-hover:border-indigo-600 text-indigo-400 group-hover:text-white rounded-lg transition-all cursor-pointer"
-                        title="Open this lesson notes version"
-                      >
-                        <FolderOpen className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                  {currentFact.relatedTopic && (
+                    <p className="text-[11px] text-amber-400 font-semibold">
+                      Related to: {currentFact.relatedTopic}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 pt-1">
+                    <span>{isFactExpanded ? 'Hide explanation' : 'Tap for a brief explanation'}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isFactExpanded ? 'rotate-180' : ''}`} />
+                  </div>
+
+                  {isFactExpanded && (
+                    <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800">
+                      {currentFact.detail || 'No additional detail available for this fact.'}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -372,57 +381,46 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* "Did You Know?" personalized facts feed */}
+            {/* Study Guide History — moved here from the narrow right panel,
+                now full-width with a responsive grid instead of a single
+                vertical stack, to make use of the extra space. */}
             <div className="lg:col-span-3 bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-4">
               <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-                <Lightbulb className="h-5 w-5 text-amber-400" />
-                <span>Did You Know?</span>
+                <History className="h-5 w-5 text-amber-500" />
+                <span>Study Guide History</span>
               </h2>
 
-              {isFactsLoading ? (
-                <div className="py-8 flex items-center justify-center text-slate-500 text-xs gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
-                  <span>Generating personalized facts...</span>
-                </div>
-              ) : facts.length === 0 ? (
-                <p className="text-xs text-slate-500">No facts available yet — generate a learning path to see facts tailored to your subjects.</p>
+              {historyNotes.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">
+                  No note runs generated yet. When you compile study notes, they will appear here.
+                </p>
               ) : (
-                <>
-                  <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
-                    {facts.map((f: any, idx: number) => {
-                      const isExpanded = expandedFactIndex === idx;
-                      return (
-                        <div
-                          key={idx}
-                          onClick={() => setExpandedFactIndex(isExpanded ? null : idx)}
-                          className="bg-slate-950/60 border border-slate-800 hover:border-amber-500/30 rounded-xl p-3.5 space-y-1 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-xs text-slate-300 leading-relaxed">{f.fact}</p>
-                            <ChevronDown
-                              className={`h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                            />
-                          </div>
-                          {f.relatedTopic && (
-                            <p className="text-[11px] text-amber-400 font-semibold">{f.relatedTopic}</p>
-                          )}
-                          {isExpanded && (
-                            <p className="text-[11px] text-slate-400 leading-relaxed pt-2 mt-2 border-t border-slate-800">
-                              {f.detail || 'No additional detail available for this fact.'}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <button
-                    onClick={handleLoadMoreFacts}
-                    disabled={isFactsRefreshing}
-                    className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    {isFactsRefreshing ? 'Loading more facts...' : 'Load more facts'}
-                  </button>
-                </>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {historyNotes.map((n) => (
+                    <div
+                      key={n.id}
+                      className="bg-slate-950/60 border border-slate-800 hover:border-slate-700 rounded-xl p-4.5 hover:bg-slate-900/90 transition-all flex justify-between items-center gap-4 group"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <h4 className="text-xs font-bold text-slate-300 truncate">{n.title}</h4>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {n.day?.roadmap?.title || 'Custom Path'} • Day {n.day?.dayNumber}
+                        </p>
+                        <p className="text-[11px] text-slate-600">
+                          Generated: {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleOpenHistoricalNote(n)}
+                        className="p-2 bg-indigo-600/10 border border-indigo-500/20 group-hover:bg-indigo-600 group-hover:border-indigo-600 text-indigo-400 group-hover:text-white rounded-lg transition-all cursor-pointer"
+                        title="Open this lesson notes version"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
