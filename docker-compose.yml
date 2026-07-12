@@ -38,6 +38,9 @@ services:
       - "5000:5000"
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/edlearn?schema=public
     depends_on:
       - postgres
       - mongodb

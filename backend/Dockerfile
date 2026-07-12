@@ -1,23 +1,23 @@
-FROM node:20-alpine
-
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Copy package files and install production dependencies
 COPY package*.json ./
 RUN npm ci
 
-# Copy Prisma schema and generate client
-COPY prisma ./prisma/
-RUN npx prisma generate
-
-# Copy the rest of the application
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build TypeScript
+RUN npx prisma generate
 RUN npm run build
 
-# Expose the backend port
-EXPOSE 5000
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
 
-# Start the server
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY package*.json ./
+
+EXPOSE 5000
 CMD ["node", "dist/index.js"]

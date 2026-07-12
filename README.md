@@ -27,25 +27,22 @@ The platform is designed with a highly scalable, cloud-agnostic architecture:
 
 ---
 
-## 🚀 Getting Started (Docker / Local)
+## 🚀 Getting Started
 
-Follow these steps to run the complete stack locally using the new Dockerized setup.
+There are two ways to run the stack. Pick one — **don't mix them**.
 
-### Prerequisites
-- Node.js (v20+)
-- Docker and Docker Compose
+---
 
-### 1. Database Setup & Full Stack Boot (Docker)
-From the root workspace directory, spin up PostgreSQL, MongoDB, Redis, and the containerized Frontend/Backend applications:
+### Mode A — Local Dev (recommended for active development)
+
+Run only the infrastructure in Docker, and the app servers natively with hot-reload.
+
+**1. Start infrastructure containers**
 ```bash
-docker-compose up --build -d
+docker-compose up -d redis postgres mongodb
 ```
-You can verify the 5 containers are active by running `docker ps`.
-- The Frontend will be mapped to `http://localhost:3000`
-- The Backend will be mapped to `http://localhost:5000`
 
-### 2. Configure Environment Variables
-Verify or create `.env` files in both the **root** folder and the **`/backend`** folder with the following variables:
+**2. Set up your `.env` in the project root**
 ```env
 # AI Service Provider: GROQ | GEMINI
 AI_PROVIDER=GEMINI
@@ -54,16 +51,65 @@ AI_PROVIDER=GEMINI
 GROQ_API_KEY=your_groq_api_key
 GEMINI_API_KEY=your_gemini_api_key
 
-# Databases (Used by backend)
-DATABASE_URL="postgresql://postgres:postgres@postgres:5432/edlearn?schema=public"
-MONGODB_URI="mongodb://mongodb:27017/edlearn"
-REDIS_URL="redis://redis:6379"
+# Databases — use localhost because the app runs on the host
+DATABASE_URL="postgresql://postgres:postgres@localhost:5434/edlearn?schema=public"
+MONGODB_URI="mongodb://localhost:27017/edlearn"
+REDIS_URL="redis://localhost:6379"
 
-# Frontend (Used by k8s/docker configmaps)
 FRONTEND_URL="http://localhost:3000"
+JWT_SECRET=your_jwt_secret
 ```
 
-*(Note: If running the Node apps natively outside of Docker instead, make sure to change the hostnames in the DB URLs from `postgres`/`mongodb`/`redis` to `localhost` and map Postgres to port `5434`).*
+> [!NOTE]
+> PostgreSQL is mapped to host port **`5434`** (not `5432`) to avoid conflicts with any native Postgres installation you may have running on Windows.
+
+**3. Run the app servers (two separate terminals)**
+```bash
+# Terminal 1 — backend
+cd backend && npm run dev
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+```
+
+- Frontend → `http://localhost:3000`
+- Backend  → `http://localhost:5000`
+
+---
+
+### Mode B — Full Docker
+
+Runs everything (app + infra) in containers. Good for staging / demos.
+
+**1. Build and start all containers**
+```bash
+docker-compose up --build -d
+```
+
+The `docker-compose.yml` automatically overrides the DB URLs for the backend container to use Docker service names (`redis`, `postgres`) instead of `localhost`. **You do not need to change your `.env`.**
+
+```env
+# Databases — set these to localhost values in .env (Docker overrides them internally)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5434/edlearn?schema=public"
+REDIS_URL="redis://localhost:6379"
+```
+
+> [!IMPORTANT]
+> Inside Docker, containers communicate via service names, not `localhost`. The `docker-compose.yml` injects `REDIS_URL=redis://redis:6379` and `DATABASE_URL=postgresql://postgres:postgres@postgres:5432/edlearn` as environment overrides for the backend service — so your `.env` stays valid for local dev simultaneously.
+
+**2. Verify all 5 containers are running**
+```bash
+docker ps
+```
+
+- Frontend → `http://localhost:3000`
+- Backend  → `http://localhost:5000`
+
+**View live logs:**
+```bash
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
 
 ---
 
