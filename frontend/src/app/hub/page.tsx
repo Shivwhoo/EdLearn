@@ -6,11 +6,16 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Users, Compass, HelpCircle, ArrowRight, RefreshCw, Info } from 'lucide-react';
 import { redirectToApp, SsoApp } from '@/lib/ssoHandoff';
 
-// NOTE: All three cards below show SAMPLE data. Person 1 hasn't confirmed
-// what EdMentor / EdCompass / EdQuiz can actually share back with EdLearn
-// yet (no cross-app access/credentials), so there's nothing real to fetch.
-// Once that's confirmed, replace SAMPLE_* below with real API calls and
-// this note can come out.
+// NOTE: EdMentor / EdCompass haven't confirmed what they can share back
+// with EdLearn yet (no cross-app access/credentials), so there's nothing
+// real to fetch for these two cards. Until that integration exists, the
+// flags below stay hardcoded to false so the Hub shows honest empty states
+// instead of fake data. Once Person 1 confirms the API, replace these two
+// consts with real values from useWorkspaceStore / an API call, and the
+// SAMPLE_* objects below with the real fetched data.
+const hasMentorSession = false;
+const hasCompassResult = false;
+
 const SAMPLE_MENTOR_SESSION = {
   mentorName: 'Aditi Rao',
   focus: 'System Design Fundamentals',
@@ -75,7 +80,7 @@ export default function HubPage() {
         <div className="flex items-start gap-2 p-3 bg-indigo-500/5 border border-indigo-500/20 rounded-xl text-xs text-indigo-300">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
-            The cards below show sample data for now. Real data from EdMentor and EdCompass will appear here once those apps can share it back with EdLearn.
+            Mentor sessions and career assessment results will appear here automatically once EdMentor and EdCompass can share that data back with EdLearn.
           </span>
         </div>
 
@@ -93,9 +98,17 @@ export default function HubPage() {
                 <Users className="h-5 w-5" />
                 <h2 className="text-sm font-bold text-slate-200">Your Next Mentor Session</h2>
               </div>
-              <p className="text-sm text-slate-300 font-semibold">{SAMPLE_MENTOR_SESSION.mentorName}</p>
-              <p className="text-xs text-slate-500">{SAMPLE_MENTOR_SESSION.focus}</p>
-              <p className="text-xs text-slate-500">Scheduled: <span className="text-slate-300">{SAMPLE_MENTOR_SESSION.when}</span></p>
+              {hasMentorSession ? (
+                <>
+                  <p className="text-sm text-slate-300 font-semibold">{SAMPLE_MENTOR_SESSION.mentorName}</p>
+                  <p className="text-xs text-slate-500">{SAMPLE_MENTOR_SESSION.focus}</p>
+                  <p className="text-xs text-slate-500">Scheduled: <span className="text-slate-300">{SAMPLE_MENTOR_SESSION.when}</span></p>
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  No upcoming mentor session. Book one via EdMentor.
+                </p>
+              )}
             </div>
             <button
               onClick={() => handleOpenApp('edmentor')}
@@ -106,7 +119,7 @@ export default function HubPage() {
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <>
-                  <span>Open EdMentor</span>
+                  <span>{hasMentorSession ? 'Open EdMentor' : 'Book via EdMentor'}</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </>
               )}
@@ -120,9 +133,17 @@ export default function HubPage() {
                 <Compass className="h-5 w-5" />
                 <h2 className="text-sm font-bold text-slate-200">Your Last EdCompass Result</h2>
               </div>
-              <p className="text-sm text-slate-300 font-semibold">{SAMPLE_COMPASS_RESULT.path}</p>
-              <p className="text-xs text-slate-500 leading-relaxed">{SAMPLE_COMPASS_RESULT.summary}</p>
-              <p className="text-xs text-slate-600">Scored: {SAMPLE_COMPASS_RESULT.scoredOn}</p>
+              {hasCompassResult ? (
+                <>
+                  <p className="text-sm text-slate-300 font-semibold">{SAMPLE_COMPASS_RESULT.path}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{SAMPLE_COMPASS_RESULT.summary}</p>
+                  <p className="text-xs text-slate-600">Scored: {SAMPLE_COMPASS_RESULT.scoredOn}</p>
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Take an assessment on EdCompass to see your career fit.
+                </p>
+              )}
             </div>
             <button
               onClick={() => handleOpenApp('edcompass')}
@@ -133,7 +154,7 @@ export default function HubPage() {
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <>
-                  <span>Open EdCompass</span>
+                  <span>{hasCompassResult ? 'Open EdCompass' : 'Take Assessment'}</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </>
               )}
