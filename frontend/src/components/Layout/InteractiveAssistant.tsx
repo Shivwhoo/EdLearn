@@ -14,7 +14,7 @@ export const InteractiveAssistant: React.FC = () => {
   const { currentDay, activeMode, user } = useWorkspaceStore();
   const [activeTab, setActiveTab] = useState<'chat' | 'forum'>('chat');
   const [chatType, setChatType] = useState<'focused' | 'cross'>('focused');
-  
+
   // Chat state
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
@@ -177,13 +177,13 @@ export const InteractiveAssistant: React.FC = () => {
   };
 
   return (
-    <aside className="print:hidden w-full h-full bg-slate-900/40 flex flex-col">
+    <aside className="print:hidden w-full h-full bg-white flex flex-col">
       {/* Sidebar Tabs */}
-      <div className="flex border-b border-slate-800">
+      <div className="flex border-b border-slate-100">
         <button
           onClick={() => setActiveTab('chat')}
-          className={`flex-1 py-3 text-center text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${
-            activeTab === 'chat' ? 'border-amber-500 text-amber-500 bg-slate-800/20' : 'border-transparent text-slate-500 hover:text-slate-300'
+          className={`flex-1 py-3 text-center text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${
+            activeTab === 'chat' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Sparkles className="h-4 w-4" />
@@ -191,8 +191,8 @@ export const InteractiveAssistant: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('forum')}
-          className={`flex-1 py-3 text-center text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${
-            activeTab === 'forum' ? 'border-amber-500 text-amber-500 bg-slate-800/20' : 'border-transparent text-slate-500 hover:text-slate-300'
+          className={`flex-1 py-3 text-center text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${
+            activeTab === 'forum' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <MessageSquare className="h-4 w-4" />
@@ -204,13 +204,13 @@ export const InteractiveAssistant: React.FC = () => {
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col justify-between overflow-hidden">
           {/* Chat options */}
-          <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
-            <span className="text-xs font-semibold text-slate-400">Context Mode:</span>
+          <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <span className="text-xs font-medium text-slate-600">Context Mode:</span>
             <div className="flex space-x-1">
               <button
                 onClick={() => setChatType('focused')}
                 className={`px-2 py-1 text-xs rounded transition-colors ${
-                  chatType === 'focused' ? 'bg-indigo-600 text-indigo-100' : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                  chatType === 'focused' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Focused
@@ -218,7 +218,7 @@ export const InteractiveAssistant: React.FC = () => {
               <button
                 onClick={() => setChatType('cross')}
                 className={`px-2 py-1 text-xs rounded transition-colors ${
-                  chatType === 'cross' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                  chatType === 'cross' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Cross-Domain
@@ -231,7 +231,7 @@ export const InteractiveAssistant: React.FC = () => {
             {chatMessages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`p-2.5 max-w-[280px] rounded-lg text-xs leading-relaxed ${
-                  msg.role === 'user' ? 'bg-indigo-600 text-indigo-100' : 'bg-slate-800 border border-slate-700 text-slate-300'
+                  msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 border border-slate-200 text-slate-800'
                 }`}>
                   {msg.content}
                 </div>
@@ -239,7 +239,7 @@ export const InteractiveAssistant: React.FC = () => {
             ))}
             {isSendingChat && (
               <div className="flex justify-start">
-                <div className="p-2.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-500 flex items-center space-x-1.5">
+                <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center space-x-1.5">
                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                   <span>Thinking...</span>
                 </div>
@@ -248,18 +248,18 @@ export const InteractiveAssistant: React.FC = () => {
           </div>
 
           {/* Input control */}
-          <div className="p-3 border-t border-slate-800 flex items-center space-x-2 bg-slate-900/60">
+          <div className="p-3 border-t border-slate-100 flex items-center space-x-2 bg-slate-50">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
               placeholder="Ask a clarifying question..."
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
+              className="flex-1 bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500"
             />
             <button
               onClick={handleSendChat}
-              className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+              className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               <Send className="h-4 w-4" />
             </button>
@@ -272,25 +272,25 @@ export const InteractiveAssistant: React.FC = () => {
         <div className="flex-1 flex flex-col justify-between overflow-hidden p-4 space-y-4">
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
             {/* Create Thread Form */}
-            <div className="p-3 bg-slate-800/40 border border-slate-700 rounded-lg space-y-2">
-              <h4 className="text-xs font-bold text-slate-300">Ask a Community Doubt:</h4>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <h4 className="text-xs font-semibold text-slate-700">Ask a Community Doubt:</h4>
               <input
                 type="text"
                 placeholder="Topic / Title..."
                 value={newThreadTitle}
                 onChange={(e) => setNewThreadTitle(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                className="w-full bg-white border border-slate-200 rounded p-2 text-xs text-slate-900 outline-none focus:border-blue-500"
               />
               <textarea
                 placeholder="Describe your question details..."
                 value={newThreadContent}
                 onChange={(e) => setNewThreadContent(e.target.value)}
                 rows={2}
-                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-slate-200 outline-none focus:border-indigo-500 resize-none"
+                className="w-full bg-white border border-slate-200 rounded p-2 text-xs text-slate-900 outline-none focus:border-blue-500 resize-none"
               />
               <button
                 onClick={handleCreateThread}
-                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition-all"
+                className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold tracking-[0.01em] transition-all"
               >
                 Post Doubt
               </button>
@@ -299,30 +299,30 @@ export const InteractiveAssistant: React.FC = () => {
             {/* List existing threads */}
             {isLoadingThreads ? (
               <div className="text-center text-xs text-slate-500 py-8">
-                <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-2 text-indigo-500" />
+                <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-2 text-blue-600" />
                 <span>Loading Community Discussions...</span>
               </div>
             ) : threads.length === 0 ? (
-              <div className="text-center text-xs text-slate-600 py-8">
-                <HelpCircle className="h-6 w-6 mx-auto mb-2 text-slate-700" />
+              <div className="text-center text-xs text-slate-500 py-8">
+                <HelpCircle className="h-6 w-6 mx-auto mb-2 text-slate-300" />
                 <span>No threads posted yet. Be the first to ask!</span>
               </div>
             ) : (
               threads.map((thread) => (
-                <div key={thread._id} className="p-3 bg-slate-800/20 border border-slate-800 rounded-lg space-y-2.5">
+                <div key={thread._id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
                   <div>
-                    <h5 className="font-bold text-slate-200 text-xs">{thread.title}</h5>
-                    <p className="text-slate-400 text-[11px] mt-0.5">{thread.content}</p>
+                    <h5 className="font-semibold text-slate-800 text-xs">{thread.title}</h5>
+                    <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">{thread.content}</p>
                     <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
                       <div className="flex flex-col space-y-0.5">
-                        <span className="font-semibold">{thread.author.name}</span>
+                        <span className="font-medium">{thread.author.name}</span>
                         {thread.author.rank && (
-                          <span className="text-[10px] text-amber-500/80 font-medium">Rank: {thread.author.rank}</span>
+                          <span className="text-[10px] text-amber-600 font-medium">Rank: {thread.author.rank}</span>
                         )}
                         {thread.author.badges && thread.author.badges.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-0.5">
                             {thread.author.badges.map((b: string, i: number) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded text-[10px]">
+                              <span key={i} className="px-1.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded text-[10px]">
                                 {b}
                               </span>
                             ))}
@@ -331,7 +331,7 @@ export const InteractiveAssistant: React.FC = () => {
                       </div>
                       <button
                         onClick={() => handleUpvote(thread._id)}
-                        className="flex items-center space-x-1 hover:text-amber-500 transition-colors"
+                        className="flex items-center space-x-1 hover:text-amber-600 transition-colors"
                       >
                         <ThumbsUp className="h-3 w-3" />
                         <span>{thread.upvotes?.length || 0}</span>
@@ -341,20 +341,20 @@ export const InteractiveAssistant: React.FC = () => {
 
                   {/* Comment list */}
                   {thread.comments?.length > 0 && (
-                    <div className="border-t border-slate-800/60 pt-2 space-y-1.5">
+                    <div className="border-t border-slate-200 pt-2 space-y-1.5">
                       {thread.comments.map((comment: any) => (
-                        <div key={comment.commentId} className="bg-slate-900/40 p-2 rounded text-[11px] text-slate-300 space-y-1">
-                          <div className="flex items-center justify-between border-b border-slate-800/40 pb-0.5 mb-1">
-                            <span className="font-semibold text-indigo-400">{comment.author.name}</span>
+                        <div key={comment.commentId} className="bg-white border border-slate-100 p-2 rounded text-[11px] text-slate-700 space-y-1">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-0.5 mb-1">
+                            <span className="font-medium text-blue-600">{comment.author.name}</span>
                             {comment.author.rank && (
-                              <span className="text-[10px] text-amber-500/80">{comment.author.rank}</span>
+                              <span className="text-[10px] text-amber-600">{comment.author.rank}</span>
                             )}
                           </div>
-                          <p className="text-slate-300 text-[11px]">{comment.content}</p>
+                          <p className="text-slate-700 text-[11px] leading-relaxed">{comment.content}</p>
                           {comment.author.badges && comment.author.badges.length > 0 && (
                             <div className="flex flex-wrap gap-1 pt-0.5">
                               {comment.author.badges.map((b: string, i: number) => (
-                                <span key={i} className="px-1.5 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 rounded text-[10px]">
+                                <span key={i} className="px-1.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded text-[10px]">
                                   {b}
                                 </span>
                               ))}
@@ -373,11 +373,11 @@ export const InteractiveAssistant: React.FC = () => {
                       value={commentInputs[thread._id] || ''}
                       onChange={(e) => setCommentInputs({ ...commentInputs, [thread._id]: e.target.value })}
                       onKeyDown={(e) => e.key === 'Enter' && handleCreateComment(thread._id)}
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[11px] text-slate-200 outline-none focus:border-indigo-500"
+                      className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-900 outline-none focus:border-blue-500"
                     />
                     <button
                       onClick={() => handleCreateComment(thread._id)}
-                      className="px-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded text-[11px] transition-colors cursor-pointer"
+                      className="px-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded text-[11px] font-medium transition-colors cursor-pointer"
                     >
                       Post
                     </button>

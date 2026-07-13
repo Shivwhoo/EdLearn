@@ -19,11 +19,34 @@ import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
-// C3: Restrict CORS to configured frontend origin only
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
-app.use(cors({ origin: allowedOrigin, credentials: true }));
+// C3: Restrict CORS to configured frontend origin(s) only.
+// FRONTEND_URL may be a comma-separated list (e.g. a deployed URL plus
+// localhost during development). Trailing slashes are trimmed so
+// "http://localhost:3000/" and "http://localhost:3000" both match.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+console.log(`[CORS] Allowed origin(s): ${allowedOrigins.join(', ')}`);
+
+app.use(cors({
+  origin(origin, callback) {
+    // No Origin header at all means this isn't a cross-origin browser
+    // request (curl, server-to-server calls, and — importantly — the
+    // Next.js dev server's own "/api/:path*" rewrite proxy all omit it).
+    // Those should always be allowed through; only real cross-origin
+    // browser requests need to match the allowlist.
+    if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+      return callback(null, true);
+    }
+    console.warn(`[CORS] Blocked request from disallowed origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
@@ -1100,6 +1123,32 @@ Respond with ONLY the single label word — no punctuation, no explanation, no J
     // the chat box should always keep working even if classification breaks.
     res.json({ success: true, label: 'learn' });
   }
+});
+
+// --- Fallback handlers (must be registered after every route above) ---
+
+// Any /api/* path that didn't match a route above (typo, wrong method, a
+// route that only exists on the frontend's Next.js side, etc.) gets a JSON
+// 404 instead of Express's default HTML "Cannot POST /api/..." page — so
+// the frontend's `err.response?.data?.error` handling always has something
+// useful to show instead of falling back to a generic message.
+app.use('/api', (req: express.Request, res: express.Response) => {
+  res.status(404).json({ error: `No API route matches ${req.method} ${req.originalUrl}` });
+});
+
+// Catch-all error handler. Anything thrown synchronously in a route, passed
+// to next(err), or produced by the CORS origin callback above lands here —
+// guaranteeing a JSON body instead of Express's default HTML error page
+// (which is what makes axios's `err.response?.data?.error` come back
+// undefined and fall through to a generic "failed to authenticate" string).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.message === 'Not allowed by CORS') {
+    console.warn(`[CORS] Rejected request from origin: ${req.headers.origin}`);
+    return res.status(403).json({ error: 'This origin is not permitted to access the API.' });
+  }
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ error: 'Internal Server Error.' });
 });
 
 async function connectMongoWithRetry(retries = 3, delayMs = 3000): Promise<void> {
