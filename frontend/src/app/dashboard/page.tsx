@@ -21,7 +21,7 @@ import axios from 'axios';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { token, user, setRoadmap, selectDay } = useWorkspaceStore();
+  const { token, user, setRoadmap, selectDay, logout } = useWorkspaceStore();
 
   const [isMounted, setIsMounted] = useState(false);
   const [roadmaps, setRoadmaps] = useState<any[]>([]);
@@ -59,7 +59,9 @@ export default function DashboardPage() {
       setIsLoading(true);
       setErrorMsg('');
       try {
-        const res = await axios.get('/api/dashboard/summary');
+        const res = await axios.get('/api/dashboard/summary', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (res.data?.success) {
           setRoadmaps(res.data.roadmaps || []);
           setHistoryNotes(res.data.topics || []);
@@ -68,6 +70,12 @@ export default function DashboardPage() {
         }
       } catch (err: any) {
         console.error('Failed to load dashboard summary:', err);
+        // If token is expired/invalid, clear it and force re-login
+        if (err.response?.status === 401) {
+          logout();
+          router.push('/login');
+          return;
+        }
         setErrorMsg(err.response?.data?.error || 'Could not communicate with backend database.');
       } finally {
         setIsLoading(false);
@@ -75,6 +83,7 @@ export default function DashboardPage() {
     };
 
     fetchSummary();
+
   }, [token, isMounted]);
 
   // Fetch trending in-demand skills (market demand indicators)
@@ -139,7 +148,9 @@ export default function DashboardPage() {
   // Open an active roadmap in the workspace
   const handleOpenRoadmap = async (targetRoadmap: any) => {
     try {
-      await axios.post('/api/user/active-roadmap', { roadmapId: targetRoadmap.id });
+      await axios.post('/api/user/active-roadmap', { roadmapId: targetRoadmap.id }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
     } catch (err) {
       console.warn('Failed to persist active roadmap in cache:', err);
     }
@@ -160,7 +171,9 @@ export default function DashboardPage() {
     if (!targetDay) return;
 
     try {
-      await axios.post('/api/user/active-roadmap', { roadmapId: parentRoadmap.id });
+      await axios.post('/api/user/active-roadmap', { roadmapId: parentRoadmap.id }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
     } catch (err) {
       console.warn('Failed to persist active roadmap in cache:', err);
     }

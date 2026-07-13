@@ -1102,15 +1102,34 @@ Respond with ONLY the single label word — no punctuation, no explanation, no J
   }
 });
 
+async function connectMongoWithRetry(retries = 3, delayMs = 3000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await connectMongo();
+      console.log('MongoDB connected at startup');
+      return;
+    } catch (err: any) {
+      if (attempt < retries) {
+        console.warn(`MongoDB connection attempt ${attempt}/${retries} failed, retrying in ${delayMs}ms:`, err?.message);
+        await new Promise((res) => setTimeout(res, delayMs));
+      } else {
+        // Non-fatal: server starts without MongoDB; Mongoose routes return 503
+        console.error('MongoDB unavailable after all retries — server starting without it. Doubt Forum routes will fail until MongoDB is reachable.', err?.message);
+      }
+    }
+  }
+}
+
 async function startServer() {
-  // H5: Connect MongoDB once at startup instead of per-request
-  await connectMongo();
-  console.log('MongoDB connected at startup');
+  // Retry MongoDB connection up to 3 times before giving up (non-fatal)
+  await connectMongoWithRetry();
 
   app.listen(PORT, () => {
     console.log(`Backend server successfully listening on port ${PORT}`);
-    // Start the background cron updater
-    startMarketWorker();
+    // Fire-and-forget: BullMQ worker is optional; Redis unavailability must not crash startup
+    startMarketWorker().catch((err) => {
+      console.warn('[BullMQ] Worker startup error (non-fatal):', err?.message || err);
+    });
   });
 }
 
@@ -1118,3 +1137,4 @@ startServer().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
+

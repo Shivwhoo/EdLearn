@@ -8,7 +8,7 @@ import axios from 'axios';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { token, user, setUserProfile, setRoadmap } = useWorkspaceStore();
+  const { token, user, setUserProfile, setRoadmap, logout } = useWorkspaceStore();
 
   const [isMounted, setIsMounted] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -84,6 +84,12 @@ export default function OnboardingPage() {
       }
     } catch (err: any) {
       console.error(err);
+      if (err.response?.status === 401) {
+        // Session token has no database match (e.g. database was reset) — logout and send to signup
+        logout();
+        router.push('/signup');
+        return;
+      }
       setErrorMsg(err.response?.data?.error || 'Database connection timed out. Ensure PostgreSQL is active.');
     } finally {
       setIsSubmitting(false);
