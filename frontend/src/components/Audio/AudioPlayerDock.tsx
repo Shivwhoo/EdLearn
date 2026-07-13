@@ -121,7 +121,7 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
   };
 
   return (
-    <div className="print:hidden fixed bottom-0 left-0 right-0 h-20 glass border-t border-slate-800 px-8 flex items-center justify-between z-50">
+    <div className="print:hidden fixed bottom-0 left-0 right-0 h-20 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(15,23,42,0.06)] px-8 flex items-center justify-between z-50">
       {/* Waveform graphic */}
       <div className="flex items-center space-x-2 w-1/4">
         <Volume2 className="h-5 w-5 text-amber-500" />
@@ -145,7 +145,7 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
       <div className="flex items-center space-x-6">
         <button
           onClick={handleReset}
-          className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
+          className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-900 transition-colors"
           title="Restart Audio"
         >
           <RotateCcw className="h-5 w-5" />
@@ -161,7 +161,7 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
         <button
           onClick={toggleFocusMode}
           className={`p-2 rounded-full transition-colors ${
-            focusMode ? 'bg-amber-500/20 text-amber-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            focusMode ? 'bg-amber-50 text-amber-600' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
           }`}
           title={focusMode ? "Disable Focus Mode" : "Enable Focus Mode"}
         >
@@ -175,7 +175,7 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
         <select
           value={speechRate}
           onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-          className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 outline-none"
+          className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm text-slate-800 outline-none"
         >
           <option value="0.75">0.75x</option>
           <option value="1.0">1.0x</option>
@@ -186,11 +186,11 @@ export const AudioPlayerDock: React.FC<AudioPlayerDockProps> = ({ sentences }) =
 
         {/* Voice Selector */}
         <div className="flex items-center space-x-1">
-          <User className="h-4 w-4 text-slate-400" />
+          <User className="h-4 w-4 text-slate-500" />
           <select
             value={selectedVoiceName}
             onChange={(e) => setSelectedVoiceName(e.target.value)}
-            className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 max-w-[120px] outline-none"
+            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm text-slate-800 max-w-[120px] outline-none"
           >
             {voices
               .filter((v) => v.lang.startsWith('en'))
