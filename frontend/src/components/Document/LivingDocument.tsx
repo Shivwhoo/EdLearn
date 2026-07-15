@@ -215,15 +215,18 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
               <span>{isPdfExporting ? 'Exporting...' : 'Download PDF'}</span>
             </button>
 
-            <button
-              onClick={onTriggerGenerate}
-              disabled={isLoadingContent}
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-600 text-blue-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
-              title="Generate a fresh notes version via RAG"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoadingContent ? 'animate-spin' : ''}`} />
-              <span>Re-generate</span>
-            </button>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[10px] text-slate-400 font-medium">Confuse?</span>
+              <button
+                onClick={onTriggerGenerate}
+                disabled={isLoadingContent}
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-600 text-blue-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                title="Confused? Regenerate and refine your notes"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingContent ? 'animate-spin' : ''}`} />
+                <span>Refine Notes</span>
+              </button>
+            </div>
           </div>
         </div>
 

@@ -259,7 +259,7 @@ export default function DashboardPage() {
                     onClick={() => router.push('/onboarding')}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold tracking-[0.01em] transition-all shadow-md cursor-pointer"
                   >
-                    Set Career Goal
+                    Start Learning
                   </button>
                 </div>
               ) : (

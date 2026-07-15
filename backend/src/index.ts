@@ -434,7 +434,7 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
 // 2. Generate Content (6 Modes + RAG)
 app.post('/api/generate', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    const { topic, mode, difficulty, url, dayId } = req.body;
+    const { topic, mode, difficulty, url, dayId, forceRefresh } = req.body;
 
     if (!topic || !mode || !difficulty) {
       return res.status(400).json({ error: 'Missing required parameters: topic, mode, difficulty' });
@@ -444,7 +444,7 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
 
     // M2: Cache key must include mode — Socratic vs. Accelerator notes are different content
     const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
-    const cachedNotes = await redisCache.getCache(cacheKey);
+    const cachedNotes = forceRefresh ? null : await redisCache.getCache(cacheKey);
 
     if (cachedNotes) {
       console.log(`Cache HIT for key: ${cacheKey}`);
@@ -477,7 +477,7 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
           }
         }
 
-        return res.json(parsedContent);
+        return res.json({ success: true, mode: modeNumber, data: parsedContent, fromCache: true });
       } catch (parseErr) {
         console.warn('Failed to parse cached JSON notes, generating fresh notes...');
       }

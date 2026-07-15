@@ -68,7 +68,8 @@ export default function WorkspacePage() {
   }, [currentDay?.id, fetchNotesHistory]);
 
   // Fetch or trigger content generation when day or mode changes
-  const handleGenerateContent = async () => {
+  // forceRefresh=true skips Redis cache — used by "Refine Notes" to always get new content
+  const handleGenerateContent = async (forceRefresh: boolean = false) => {
     if (!currentDay) return;
     setLoadingContent(true);
     setErrorMsg('');
@@ -78,6 +79,7 @@ export default function WorkspacePage() {
         mode: activeMode,
         difficulty: userProfile?.difficulty || 'Intermediate',
         dayId: currentDay.id,
+        forceRefresh,
       });
 
       if (response.data?.success) {
@@ -184,7 +186,7 @@ export default function WorkspacePage() {
         <div className="flex-1 overflow-hidden flex flex-col items-center bg-white">
           <div className="w-full max-w-5xl h-full flex flex-col">
             <LivingDocument
-              onTriggerGenerate={handleGenerateContent}
+              onTriggerGenerate={() => handleGenerateContent(true)}
               sentenceRef={sentencesRef}
             />
           </div>
