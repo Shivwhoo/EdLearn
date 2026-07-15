@@ -41,7 +41,7 @@ axios.interceptors.response.use(
         status: 0,
         statusText: 'Network Error',
         headers: {},
-        config: error.config,
+        config: error.config!,
       };
     }
     return Promise.reject(error);

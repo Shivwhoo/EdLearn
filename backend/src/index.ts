@@ -33,19 +33,10 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
 console.log(`[CORS] Allowed origin(s): ${allowedOrigins.join(', ')}`);
 
 app.use(cors({
-  origin(origin, callback) {
-    // No Origin header at all means this isn't a cross-origin browser
-    // request (curl, server-to-server calls, and — importantly — the
-    // Next.js dev server's own "/api/:path*" rewrite proxy all omit it).
-    // Those should always be allowed through; only real cross-origin
-    // browser requests need to match the allowlist.
-    if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
-      return callback(null, true);
-    }
-    console.warn(`[CORS] Blocked request from disallowed origin: ${origin}`);
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: true,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
@@ -208,14 +199,14 @@ app.get('/api/auth/me', authenticate, async (req: express.Request, res: express.
     // This ensures users who have roadmaps can always access their workspace
     const resolvedProfile = user.profile
       ? {
-          fullName: user.profile.fullName || 'Student',
-          careerGoal: user.profile.careerGoal || activeRoadmap?.title || 'Learning',
-          currentSkills: user.profile.currentSkills || [],
-          availableTime: user.profile.availableTime || 60,
-          difficulty: user.profile.difficulty || 'Intermediate',
-        }
+        fullName: user.profile.fullName || 'Student',
+        careerGoal: user.profile.careerGoal || activeRoadmap?.title || 'Learning',
+        currentSkills: user.profile.currentSkills || [],
+        availableTime: user.profile.availableTime || 60,
+        difficulty: user.profile.difficulty || 'Intermediate',
+      }
       : activeRoadmap
-      ? {
+        ? {
           // Synthesize a minimal profile from the roadmap so the workspace gate passes
           fullName: user.email.split('@')[0],
           careerGoal: activeRoadmap.title,
@@ -223,7 +214,7 @@ app.get('/api/auth/me', authenticate, async (req: express.Request, res: express.
           availableTime: 60,
           difficulty: 'Intermediate',
         }
-      : null;
+        : null;
 
     res.json({
       success: true,
@@ -938,8 +929,8 @@ app.get('/api/facts', authenticate, async (req: express.Request, res: express.Re
 
     const topicTitles = activeRoadmap
       ? Array.from(new Set(
-          activeRoadmap.days.flatMap((d) => [d.title, ...d.topics.map((t) => t.title)])
-        )).slice(0, 6)
+        activeRoadmap.days.flatMap((d) => [d.title, ...d.topics.map((t) => t.title)])
+      )).slice(0, 6)
       : [];
 
     const subjectLine = topicTitles.length > 0
