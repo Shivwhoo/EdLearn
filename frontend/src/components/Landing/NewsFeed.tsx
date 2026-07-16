@@ -1,8 +1,6 @@
-'use client';
-
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ChevronLeft, ChevronRight, Globe2, Newspaper } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Globe2, Newspaper, X, ExternalLink, Calendar } from 'lucide-react';
 import { NewsArticle, fetchContent, timeAgo, trackSpotlight } from '@/lib/content';
 
 const CATEGORIES = [
@@ -24,11 +22,100 @@ const CATEGORY_COLORS: Record<string, string> = {
   education: 'bg-cyan-100 text-cyan-700',
 };
 
+function NewsModal({ article, onClose }: { article: NewsArticle; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(article.title + ' ' + article.source)}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header Image */}
+        <div className="relative h-60 bg-slate-100 flex-shrink-0">
+          {article.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={article.imageUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+              <Newspaper className="h-16 w-16 text-blue-300" />
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-slate-900/60 hover:bg-slate-900/80 text-white backdrop-blur transition-all cursor-pointer border border-white/20"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto space-y-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className={`px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+              CATEGORY_COLORS[article.category] || 'bg-slate-100 text-slate-700'
+            }`}>
+              {article.category}
+            </span>
+            <span className="text-slate-400 font-medium">·</span>
+            <span className="text-slate-500 font-medium">{article.source}</span>
+            <span className="text-slate-400 font-medium">·</span>
+            <span className="text-slate-500 flex items-center gap-1 font-medium">
+              <Calendar className="h-3 w-3" />
+              {new Date(article.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          </div>
+
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 leading-snug">{article.title}</h3>
+
+          <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed text-sm sm:text-base space-y-3">
+            <p className="font-medium text-slate-800">{article.description}</p>
+            <p>
+              This article covers critical developments in {article.category} from {article.source}. As the industry adapts to these changes, further updates and strategic shifts are expected from key market participants.
+            </p>
+            <p>
+              Stay tuned for continuous updates. You can search for the original reporting directly to follow the story as it unfolds.
+            </p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-100">
+            <a
+              href={article.url.startsWith('https://example.com') ? searchUrl : article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-sm font-bold text-white transition-all cursor-pointer flex-1"
+            >
+              <span>{article.url.startsWith('https://example.com') ? 'Search on Google' : 'Read Full Article'}</span>
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function NewsFeed() {
   const [category, setCategory] = useState('all');
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [selected, setSelected] = useState<NewsArticle | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,13 +196,11 @@ export default function NewsFeed() {
                 </div>
               ))
             : articles.map((a, i) => (
-                <a
+                <button
                   key={a.id}
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() => setSelected(a)}
                   onMouseMove={trackSpotlight}
-                  className="spotlight-card star-border fade-up flex-shrink-0 w-[300px] snap-start rounded-2xl bg-white shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 overflow-hidden"
+                  className="spotlight-card star-border fade-up flex-shrink-0 w-[300px] snap-start rounded-2xl bg-white shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 overflow-hidden text-left cursor-pointer"
                   style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
                 >
                   <div className="shine-parent relative h-40 bg-slate-100">
@@ -144,7 +229,7 @@ export default function NewsFeed() {
                       <span>{timeAgo(a.publishedAt)}</span>
                     </div>
                   </div>
-                </a>
+                </button>
               ))}
 
           {!loading && articles.length === 0 && (
@@ -181,6 +266,10 @@ export default function NewsFeed() {
           <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
         </Link>
       </div>
+
+      {/* Detail Modal */}
+      {selected && <NewsModal article={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
+

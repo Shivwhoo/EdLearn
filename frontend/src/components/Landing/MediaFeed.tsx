@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -9,8 +7,8 @@ import {
   Headphones,
   Mic2,
   MonitorPlay,
-  Pause,
   Play,
+  X,
 } from 'lucide-react';
 import { MediaItem, fetchContent, formatDuration, trackSpotlight, youtubeId } from '@/lib/content';
 
@@ -24,14 +22,86 @@ const CATEGORIES = [
   { key: 'culture', label: 'Culture' },
 ];
 
+/** Detail modal with an embedded player */
+function PlayerModal({ item, onClose }: { item: MediaItem; onClose: () => void }) {
+  const ytId = item.contentType === 'video' ? youtubeId(item.contentUrl) : null;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-3xl bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Player */}
+        {ytId ? (
+          <div className="aspect-video bg-black">
+            <iframe
+              src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
+              title={item.title}
+              className="h-full w-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.thumbnailUrl} alt="" className="w-full h-56 object-cover opacity-70" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
+            <div className="absolute bottom-4 left-4 right-4">
+              <audio controls autoPlay src={item.contentUrl} className="w-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Meta */}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white mb-3">
+                {item.contentType === 'video' ? (
+                  <MonitorPlay className="h-3 w-3 text-red-400" />
+                ) : (
+                  <Headphones className="h-3 w-3 text-cyan-300" />
+                )}
+                {item.contentType === 'video' ? 'Video' : 'Podcast'} · {item.channelName}
+              </span>
+              <h3 className="text-lg font-bold text-white leading-snug">{item.title}</h3>
+            </div>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MediaFeed() {
   const [category, setCategory] = useState('all');
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<MediaItem | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,25 +121,6 @@ export default function MediaFeed() {
       cancelled = true;
     };
   }, [category]);
-
-  // Stop audio when unmounting or switching tracks
-  useEffect(() => {
-    return () => audioRef.current?.pause();
-  }, []);
-
-  const toggleAudio = (item: MediaItem) => {
-    if (playingId === item.id) {
-      audioRef.current?.pause();
-      setPlayingId(null);
-      return;
-    }
-    audioRef.current?.pause();
-    const audio = new Audio(item.contentUrl);
-    audio.onended = () => setPlayingId(null);
-    audio.play().catch(() => setPlayingId(null));
-    audioRef.current = audio;
-    setPlayingId(item.id);
-  };
 
   const scrollRail = (dir: 1 | -1) => {
     railRef.current?.scrollBy({ left: dir * 660, behavior: 'smooth' });
@@ -137,13 +188,13 @@ export default function MediaFeed() {
               : items.map((item, i) => {
                   const isVideo = item.contentType === 'video';
                   const ytId = isVideo ? youtubeId(item.contentUrl) : null;
-                  const isPlaying = playingId === item.id;
 
                   return (
-                    <div
+                    <button
                       key={item.id}
+                      onClick={() => setSelected(item)}
                       onMouseMove={trackSpotlight}
-                      className="spotlight-card fade-up flex-shrink-0 w-[320px] snap-start rounded-2xl bg-white/[0.06] border border-white/10 hover:border-blue-400/40 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-blue-950/50 transition-all duration-300 overflow-hidden backdrop-blur-sm"
+                      className="spotlight-card fade-up flex-shrink-0 w-[320px] snap-start rounded-2xl bg-white/[0.06] border border-white/10 hover:border-blue-400/40 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-blue-950/50 transition-all duration-300 overflow-hidden backdrop-blur-sm text-left cursor-pointer"
                       style={{ animationDelay: `${Math.min(i, 8) * 60}ms`, ['--spot-color' as string]: 'rgba(96,165,250,0.10)' }}
                     >
                       {/* Thumbnail / player */}
@@ -157,39 +208,11 @@ export default function MediaFeed() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
 
-                        {isVideo ? (
-                          <a
-                            href={item.contentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={`Watch ${item.title}`}
-                            className="absolute inset-0 z-[2] flex items-center justify-center group/play"
-                          >
-                            <span className="flex items-center justify-center h-14 w-14 rounded-full bg-white/15 backdrop-blur border border-white/30 group-hover/play:bg-blue-600 group-hover/play:scale-110 group-hover/play:border-blue-500 transition-all">
-                              <Play className="h-6 w-6 text-white ml-0.5" fill="currentColor" />
-                            </span>
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => toggleAudio(item)}
-                            aria-label={isPlaying ? `Pause ${item.title}` : `Play ${item.title}`}
-                            className="absolute inset-0 z-[2] flex items-center justify-center group/play cursor-pointer"
-                          >
-                            <span
-                              className={`flex items-center justify-center h-14 w-14 rounded-full backdrop-blur border transition-all ${
-                                isPlaying
-                                  ? 'bg-blue-600 border-blue-500 animate-pulse'
-                                  : 'bg-white/15 border-white/30 group-hover/play:bg-blue-600 group-hover/play:scale-110 group-hover/play:border-blue-500'
-                              }`}
-                            >
-                              {isPlaying ? (
-                                <Pause className="h-6 w-6 text-white" fill="currentColor" />
-                              ) : (
-                                <Play className="h-6 w-6 text-white ml-0.5" fill="currentColor" />
-                              )}
-                            </span>
-                          </button>
-                        )}
+                        <span className="absolute inset-0 z-[2] flex items-center justify-center">
+                          <span className="flex items-center justify-center h-14 w-14 rounded-full bg-white/15 backdrop-blur border border-white/30 group-hover/play:bg-blue-600 group-hover/play:scale-110 group-hover/play:border-blue-500 transition-all">
+                            <Play className="h-6 w-6 text-white ml-0.5" fill="currentColor" />
+                          </span>
+                        </span>
 
                         {/* Type badge */}
                         <span className="absolute top-3 left-3 z-[2] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-950/70 backdrop-blur border border-white/15 text-white">
@@ -211,7 +234,7 @@ export default function MediaFeed() {
                         </h3>
                         <p className="text-xs text-slate-400 font-medium truncate">{item.channelName}</p>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
 
@@ -250,6 +273,10 @@ export default function MediaFeed() {
           </Link>
         </div>
       </div>
+
+      {/* Embedded Player Modal */}
+      {selected && <PlayerModal item={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
+
