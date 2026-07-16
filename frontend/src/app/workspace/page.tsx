@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import LeftNavigationPanel from '@/components/Layout/LeftNavigationPanel';
 import InteractiveAssistant from '@/components/Layout/InteractiveAssistant';
 import LivingDocument from '@/components/Document/LivingDocument';
+import BadgeCelebrationModal from '@/components/Document/BadgeCelebrationModal';
 import { AudioPlayerDock } from '@/components/Audio/AudioPlayerDock';
 import { Compass, RefreshCw, AlertCircle, Users, HelpCircle, Menu, MessageSquare } from 'lucide-react';
 import axios from 'axios';
@@ -32,7 +33,7 @@ export default function WorkspacePage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [handoffLoading, setHandoffLoading] = useState<SsoApp | null>(null);
   const sentencesRef = useRef<string[]>([]);
-  
+
   // Zen mode states
   const [isNavOpen, setIsNavOpen] = useState(true);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -68,7 +69,8 @@ export default function WorkspacePage() {
   }, [currentDay?.id, fetchNotesHistory]);
 
   // Fetch or trigger content generation when day or mode changes
-  const handleGenerateContent = async () => {
+  // forceRefresh=true skips Redis cache — used by "Refine Notes" to always get new content
+  const handleGenerateContent = async (forceRefresh: boolean = false) => {
     if (!currentDay) return;
     setLoadingContent(true);
     setErrorMsg('');
@@ -78,6 +80,7 @@ export default function WorkspacePage() {
         mode: activeMode,
         difficulty: userProfile?.difficulty || 'Intermediate',
         dayId: currentDay.id,
+        forceRefresh,
       });
 
       if (response.data?.success) {
@@ -113,55 +116,55 @@ export default function WorkspacePage() {
 
   if (!isMounted || restoringSession || !roadmap || !currentDay) {
     return (
-      <div className="min-h-screen bg-[#0F1117] flex items-center justify-center text-slate-400">
-        <RefreshCw className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-600 mr-2" />
         <span>Loading Workspace Context...</span>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-[#0F1117] flex flex-col justify-between overflow-hidden print:h-auto print:overflow-visible">
+    <div className="h-screen bg-white flex flex-col justify-between overflow-hidden print:h-auto print:overflow-visible">
       {/* Top Banner Control Bar — hidden entirely when printing/exporting to PDF */}
-      <header className="print:hidden h-14 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-6 flex items-center justify-between z-20">
+      <header className="print:hidden h-14 border-b border-slate-200 bg-white/95 backdrop-blur-md px-6 flex items-center justify-between z-20">
         <div className="flex items-center space-x-4">
-          <button 
+          <button
             onClick={() => setIsNavOpen(!isNavOpen)}
-            className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 hover:bg-slate-100 rounded-md text-slate-500 hover:text-slate-900 transition-colors"
           >
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center space-x-3">
-            <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded text-xs font-semibold">
+            <span className="px-2 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded text-xs font-semibold">
               Day {currentDay.dayNumber}
             </span>
-            <h2 className="text-sm font-bold text-slate-200">{currentDay.title}</h2>
-            <span className="text-slate-600">|</span>
-            <span className="text-xs text-slate-400">
-              <span className="text-slate-300 font-semibold">{userProfile?.careerGoal}</span>
+            <h2 className="text-sm font-bold text-slate-900">{currentDay.title}</h2>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs text-slate-500">
+              <span className="text-slate-700 font-semibold">{userProfile?.careerGoal}</span>
             </span>
           </div>
         </div>
 
         <div className="flex items-center space-x-4">
           {errorMsg && (
-            <div className="flex items-center space-x-1.5 text-xs text-rose-400 bg-rose-500/5 px-3 py-1.5 rounded border border-rose-500/10">
+            <div className="flex items-center space-x-1.5 text-xs text-rose-600 bg-rose-50 px-3 py-1.5 rounded border border-rose-100">
               <AlertCircle className="h-4 w-4 text-rose-500" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           <button
-            onClick={handleGenerateContent}
+            onClick={() => handleGenerateContent(true)}
             disabled={isLoadingContent}
-            className="px-4 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 disabled:opacity-50 rounded text-xs font-bold transition-all cursor-pointer"
+            className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50 rounded text-xs font-bold transition-all cursor-pointer"
             title="Generate a fresh new version of the study notes for this day"
           >
             {isLoadingContent ? 'Generating...' : '+ New Version'}
           </button>
-          <button 
+          <button
             onClick={() => setIsAssistantOpen(!isAssistantOpen)}
-            className={`p-1.5 rounded-md transition-colors ${isAssistantOpen ? 'bg-indigo-500/20 text-indigo-400' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            className={`p-1.5 rounded-md transition-colors ${isAssistantOpen ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'}`}
             title="Toggle Assistant"
           >
             <MessageSquare className="h-5 w-5" />
@@ -174,24 +177,24 @@ export default function WorkspacePage() {
           to PDF instead of the full scrollable document. */}
       <div className={`flex flex-1 overflow-hidden print:h-auto print:overflow-visible print:flex-col relative ${generatedContent ? 'pb-20 print:pb-0' : ''}`}>
         {/* Left pane - Now a drawer on smaller screens or collapsible */}
-        <div className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-slate-800 bg-slate-950 z-10 ${isNavOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full absolute h-full border-r-0'}`}>
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-slate-200 bg-white z-10 ${isNavOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full absolute h-full border-r-0'}`}>
           <div className="w-80 h-full">
             <LeftNavigationPanel />
           </div>
         </div>
 
         {/* Center Canvas */}
-        <div className="flex-1 overflow-hidden flex flex-col items-center">
+        <div className="flex-1 overflow-hidden flex flex-col items-center bg-white">
           <div className="w-full max-w-5xl h-full flex flex-col">
             <LivingDocument
-              onTriggerGenerate={handleGenerateContent}
+              onTriggerGenerate={() => handleGenerateContent(true)}
               sentenceRef={sentencesRef}
             />
           </div>
         </div>
 
         {/* Right pane - Overlay or collapsible */}
-        <div className={`transition-all duration-300 ease-in-out overflow-hidden border-l border-slate-800 bg-slate-950 z-10 ${isAssistantOpen ? 'w-96 translate-x-0' : 'w-0 translate-x-full absolute right-0 h-full border-l-0'}`}>
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden border-l border-slate-200 bg-white z-10 ${isAssistantOpen ? 'w-96 translate-x-0' : 'w-0 translate-x-full absolute right-0 h-full border-l-0'}`}>
           <div className="w-96 h-full">
             <InteractiveAssistant />
           </div>
@@ -202,6 +205,9 @@ export default function WorkspacePage() {
       {generatedContent && (
         <AudioPlayerDock sentences={sentencesRef.current} />
       )}
+
+      {/* Course-completion badge celebration (fires when the final day is done) */}
+      <BadgeCelebrationModal />
     </div>
   );
 }

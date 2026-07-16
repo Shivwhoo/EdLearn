@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import "@/lib/axiosConfig"; // Registers the global axios error-message interceptor — see that file's header comment.
 import PublicNavbar from "@/components/Layout/PublicNavbar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Switched from Geist to Inter to match the Paya-style typography pass —
+// Inter is the primary font in the redesign spec (Plus Jakarta Sans was the
+// listed alternative). `--font-inter` backs the `font-family` in
+// globals.css; Geist_Mono was dropped since nothing in the app referenced
+// its CSS variable directly (code blocks use Tailwind's built-in font-mono
+// utility instead, which is unaffected by this swap).
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -27,9 +30,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <PublicNavbar />
         {children}
       </body>

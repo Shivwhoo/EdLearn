@@ -19,11 +19,34 @@ import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
-// C3: Restrict CORS to configured frontend origin only
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
-app.use(cors({ origin: allowedOrigin, credentials: true }));
+// C3: Restrict CORS to configured frontend origin(s) only.
+// FRONTEND_URL may be a comma-separated list (e.g. a deployed URL plus
+// localhost during development). Trailing slashes are trimmed so
+// "http://localhost:3000/" and "http://localhost:3000" both match.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+console.log(`[CORS] Allowed origin(s): ${allowedOrigins.join(', ')}`);
+
+app.use(cors({
+  origin(origin, callback) {
+    // No Origin header at all means this isn't a cross-origin browser
+    // request (curl, server-to-server calls, and — importantly — the
+    // Next.js dev server's own "/api/:path*" rewrite proxy all omit it).
+    // Those should always be allowed through; only real cross-origin
+    // browser requests need to match the allowlist.
+    if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+      return callback(null, true);
+    }
+    console.warn(`[CORS] Blocked request from disallowed origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
@@ -202,6 +225,13 @@ app.get('/api/auth/me', authenticate, async (req: express.Request, res: express.
         }
       : null;
 
+    // Completed-day IDs + earned badges, so the client restores real progress
+    // from the database (not just localStorage) on every session load.
+    const [completedProgress, userBadges] = await Promise.all([
+      db.progress.findMany({ where: { userId }, distinct: ['dayId'], select: { dayId: true } }),
+      db.badge.findMany({ where: { userId }, orderBy: { earnedAt: 'desc' } }),
+    ]);
+
     res.json({
       success: true,
       user: {
@@ -209,7 +239,9 @@ app.get('/api/auth/me', authenticate, async (req: express.Request, res: express.
         email: user.email,
         fullName: user.profile?.fullName || user.email.split('@')[0],
         profile: resolvedProfile,
-        activeRoadmap
+        activeRoadmap,
+        completedDayIds: completedProgress.map((p) => p.dayId),
+        badges: userBadges,
       }
     });
   } catch (error) {
@@ -396,7 +428,19 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
       )
     ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    const payload = { success: true, roadmaps, topics };
+    // Real completion state (Progress table) + earned badges for the dashboard.
+    const [completedProgress, userBadges] = await Promise.all([
+      db.progress.findMany({ where: { userId }, distinct: ['dayId'], select: { dayId: true } }),
+      db.badge.findMany({ where: { userId }, orderBy: { earnedAt: 'desc' } }),
+    ]);
+
+    const payload = {
+      success: true,
+      roadmaps,
+      topics,
+      completedDayIds: completedProgress.map((p) => p.dayId),
+      badges: userBadges,
+    };
 
     // M5: Cache for 5 minutes
     await redisCache.setCache(cacheKey, JSON.stringify(payload), 300);
@@ -411,7 +455,7 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
 // 2. Generate Content (6 Modes + RAG)
 app.post('/api/generate', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    const { topic, mode, difficulty, url, dayId } = req.body;
+    const { topic, mode, difficulty, url, dayId, forceRefresh } = req.body;
 
     if (!topic || !mode || !difficulty) {
       return res.status(400).json({ error: 'Missing required parameters: topic, mode, difficulty' });
@@ -421,7 +465,7 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
 
     // M2: Cache key must include mode — Socratic vs. Accelerator notes are different content
     const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
-    const cachedNotes = await redisCache.getCache(cacheKey);
+    const cachedNotes = forceRefresh ? null : await redisCache.getCache(cacheKey);
 
     if (cachedNotes) {
       console.log(`Cache HIT for key: ${cacheKey}`);
@@ -454,7 +498,7 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
           }
         }
 
-        return res.json(parsedContent);
+        return res.json({ success: true, mode: modeNumber, data: parsedContent, fromCache: true });
       } catch (parseErr) {
         console.warn('Failed to parse cached JSON notes, generating fresh notes...');
       }
@@ -660,6 +704,100 @@ app.post('/api/roadmap', authenticate, async (req: express.Request, res: express
   } catch (error) {
     console.error('Roadmap API Error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Internal Server Error' });
+  }
+});
+
+// 3.5. Day Completion + Course Badge
+// Persists a single day's completion to PostgreSQL (the Progress table — which
+// existed in the schema but nothing wrote to before). Completion was previously
+// tracked only in the browser's localStorage, so it was lost across devices and
+// logins. This route makes the database the source of truth. When the final day
+// of a roadmap is completed, it awards a one-time "course completion" Badge.
+//
+// Idempotent by design: completing an already-completed day is a safe no-op, and
+// a roadmap's badge is only ever created once (guarded by a per-roadmap badgeType).
+app.post('/api/progress/complete', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user!.id;
+    const { dayId } = req.body;
+
+    if (!dayId) {
+      return res.status(400).json({ error: 'Missing required parameter: dayId' });
+    }
+
+    // Ownership check: a day belongs to a roadmap, which belongs to a user.
+    // Never let a user mark someone else's day complete just by knowing its ID.
+    const day = await db.day.findUnique({
+      where: { id: dayId },
+      include: { roadmap: { include: { days: { select: { id: true } } } } },
+    });
+
+    if (!day || day.roadmap.userId !== userId) {
+      return res.status(404).json({ error: 'Day not found.' });
+    }
+
+    const roadmap = day.roadmap;
+
+    // Record completion once per (user, day) — no duplicate Progress rows.
+    const existing = await db.progress.findFirst({ where: { userId, dayId } });
+    if (!existing) {
+      await db.progress.create({
+        data: { userId, roadmapId: roadmap.id, dayId },
+      });
+    }
+
+    // Mirror the flag onto this day's topic versions for convenience.
+    await db.topic.updateMany({ where: { dayId }, data: { completed: true } });
+
+    // How many distinct days of THIS roadmap has the user now completed?
+    const completedForRoadmap = await db.progress.findMany({
+      where: { userId, roadmapId: roadmap.id },
+      distinct: ['dayId'],
+      select: { dayId: true },
+    });
+    const completedDayIdsForRoadmap = completedForRoadmap.map((p) => p.dayId);
+    const totalDays = roadmap.days.length;
+    const allComplete = totalDays > 0 && completedDayIdsForRoadmap.length >= totalDays;
+
+    // Award a one-time course-completion badge. badgeType encodes the roadmap id
+    // so the same course can never mint two badges, without needing a schema change.
+    const badgeType = `course_completion:${roadmap.id}`;
+    let newlyEarnedBadge = null;
+    if (allComplete) {
+      const alreadyAwarded = await db.badge.findFirst({ where: { userId, badgeType } });
+      if (!alreadyAwarded) {
+        newlyEarnedBadge = await db.badge.create({
+          data: {
+            userId,
+            title: `Course Champion: ${roadmap.title}`,
+            description: `Completed all ${totalDays} days of "${roadmap.title}".`,
+            badgeType,
+          },
+        });
+      }
+    }
+
+    // Progress affects the dashboard summary — drop its cache so it recomputes.
+    await redisCache.deleteCache(`dashboard:${userId}`);
+
+    // Return the full, authoritative set of completed day IDs across ALL the
+    // user's roadmaps so the client can reconcile its local state in one shot.
+    const allCompleted = await db.progress.findMany({
+      where: { userId },
+      distinct: ['dayId'],
+      select: { dayId: true },
+    });
+
+    return res.json({
+      success: true,
+      completedDayIds: allCompleted.map((p) => p.dayId),
+      roadmapCompletedDayIds: completedDayIdsForRoadmap,
+      allComplete,
+      newlyEarnedBadge,
+    });
+  } catch (error) {
+    console.error('Day completion error:', error);
+    return res.status(500).json({ error: 'Failed to record day completion.' });
   }
 });
 
@@ -1100,6 +1238,32 @@ Respond with ONLY the single label word — no punctuation, no explanation, no J
     // the chat box should always keep working even if classification breaks.
     res.json({ success: true, label: 'learn' });
   }
+});
+
+// --- Fallback handlers (must be registered after every route above) ---
+
+// Any /api/* path that didn't match a route above (typo, wrong method, a
+// route that only exists on the frontend's Next.js side, etc.) gets a JSON
+// 404 instead of Express's default HTML "Cannot POST /api/..." page — so
+// the frontend's `err.response?.data?.error` handling always has something
+// useful to show instead of falling back to a generic message.
+app.use('/api', (req: express.Request, res: express.Response) => {
+  res.status(404).json({ error: `No API route matches ${req.method} ${req.originalUrl}` });
+});
+
+// Catch-all error handler. Anything thrown synchronously in a route, passed
+// to next(err), or produced by the CORS origin callback above lands here —
+// guaranteeing a JSON body instead of Express's default HTML error page
+// (which is what makes axios's `err.response?.data?.error` come back
+// undefined and fall through to a generic "failed to authenticate" string).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.message === 'Not allowed by CORS') {
+    console.warn(`[CORS] Rejected request from origin: ${req.headers.origin}`);
+    return res.status(403).json({ error: 'This origin is not permitted to access the API.' });
+  }
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ error: 'Internal Server Error.' });
 });
 
 async function connectMongoWithRetry(retries = 3, delayMs = 3000): Promise<void> {

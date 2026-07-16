@@ -74,22 +74,22 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ topicId, script, a
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-12 border-t border-white/10 mt-8 space-y-10">
+    <div className="w-full max-w-4xl mx-auto py-12 border-t border-slate-200 mt-8 space-y-10">
       <div className="flex items-center justify-between pb-2">
         <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-indigo-500/20 rounded-xl text-indigo-400">
+          <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600">
             <Mic className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-slate-100">Duo Podcast Episode</h2>
-            <p className="text-xs text-slate-400">Listen to an AI host and expert discuss this topic.</p>
+            <h2 className="text-lg font-extrabold text-slate-900">Duo Podcast Episode</h2>
+            <p className="text-xs text-slate-500">Listen to an AI host and expert discuss this topic.</p>
           </div>
         </div>
 
         <button
           onClick={handlePlayPause}
           disabled={isLoadingAudio}
-          className="flex items-center space-x-2 px-5 py-2.5 bg-white text-black hover:bg-slate-200 disabled:opacity-50 font-bold text-sm rounded-full transition-all"
+          className="flex items-center space-x-2 px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 font-bold text-sm rounded-full shadow-sm hover:shadow-md transition-all"
         >
           {isLoadingAudio ? (
             <span className="flex items-center space-x-2">
@@ -123,13 +123,13 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ topicId, script, a
             <div key={idx} className="flex flex-col space-y-2">
               <div className="flex items-center space-x-2">
                 <div className={`text-xs font-bold tracking-widest uppercase ${
-                  isHost ? 'text-slate-500' : 'text-indigo-400'
+                  isHost ? 'text-slate-500' : 'text-blue-600'
                 }`}>
                   {turn.speaker}
                 </div>
               </div>
               <p className={`text-lg leading-relaxed ${
-                isHost ? 'text-slate-300' : 'text-indigo-100'
+                isHost ? 'text-slate-700' : 'text-blue-900'
               }`}>
                 {turn.line}
               </p>

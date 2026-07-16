@@ -26,7 +26,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
     try {
       mermaid.initialize({
         startOnLoad: false,
-        theme: 'dark',
+        // Light theme to match the redesigned (white-card) document canvas —
+        // this used to be 'dark', which rendered illegible on a white card.
+        theme: 'neutral',
         securityLevel: 'loose',
         flowchart: {
           useMaxWidth: true,
@@ -75,23 +77,23 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
 
   if (error) {
     return (
-      <div className="bg-slate-900/40 border border-amber-500/10 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center space-x-2 text-amber-500">
+      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 space-y-3">
+        <div className="flex items-center space-x-2 text-amber-600">
           <AlertCircle className="h-4.5 w-4.5 flex-shrink-0" />
           <span className="text-xs font-bold uppercase tracking-wider">Visual Flowchart Failed</span>
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           The generated RAG visual diagram contains structure syntax issues. You can preview the raw flowchart instructions below.
         </p>
         <button
           onClick={() => setShowRaw(!showRaw)}
-          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+          className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold border border-slate-200 transition-all cursor-pointer"
         >
           <Eye className="h-3.5 w-3.5" />
           <span>{showRaw ? 'Hide Raw Flowchart' : 'Show Raw Flowchart'}</span>
         </button>
         {showRaw && (
-          <pre className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg text-[10px] font-mono text-indigo-300 overflow-x-auto select-all">
+          <pre className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-mono text-blue-700 overflow-x-auto select-all">
             {chart}
           </pre>
         )}
@@ -100,14 +102,14 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
   }
 
   return (
-    <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-sm overflow-hidden flex flex-col items-center">
-      <div className="w-full text-left pb-4 border-b border-slate-800/40 mb-4 flex items-center justify-between">
+    <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm overflow-hidden flex flex-col items-center">
+      <div className="w-full text-left pb-4 border-b border-slate-100 mb-4 flex items-center justify-between">
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Visual Concept Map</span>
-        <span className="text-[10px] bg-indigo-500/15 border border-indigo-500/20 text-indigo-400 font-semibold px-2 py-0.5 rounded">Flowchart</span>
+        <span className="text-[10px] bg-blue-50 border border-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded">Flowchart</span>
       </div>
-      <div 
-        ref={containerRef} 
-        className="mermaid-container w-full overflow-x-auto flex justify-center py-2 select-none" 
+      <div
+        ref={containerRef}
+        className="mermaid-container w-full overflow-x-auto flex justify-center py-2 select-none"
       />
     </div>
   );

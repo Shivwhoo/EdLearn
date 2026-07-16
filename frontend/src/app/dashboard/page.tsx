@@ -15,9 +15,11 @@ import {
   FolderOpen,
   TrendingUp,
   Lightbulb,
-  ChevronDown
+  ChevronDown,
+  Award
 } from 'lucide-react';
 import axios from 'axios';
+import BadgeDetailModal from '@/components/Document/BadgeDetailModal';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -26,6 +28,9 @@ export default function DashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [roadmaps, setRoadmaps] = useState<any[]>([]);
   const [historyNotes, setHistoryNotes] = useState<any[]>([]);
+  const [badges, setBadges] = useState<any[]>([]);
+  const [viewBadge, setViewBadge] = useState<any | null>(null);
+  const [completedDayIds, setCompletedDayIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -65,6 +70,8 @@ export default function DashboardPage() {
         if (res.data?.success) {
           setRoadmaps(res.data.roadmaps || []);
           setHistoryNotes(res.data.topics || []);
+          setBadges(res.data.badges || []);
+          setCompletedDayIds(res.data.completedDayIds || []);
         } else {
           setErrorMsg('Failed to load user progress details.');
         }
@@ -186,8 +193,8 @@ export default function DashboardPage() {
 
   if (!isMounted || !token) {
     return (
-      <div className="min-h-screen bg-[#0F1117] flex items-center justify-center text-slate-400">
-        <RefreshCw className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-600 mr-2" />
         <span>Verifying user context...</span>
       </div>
     );
@@ -196,29 +203,29 @@ export default function DashboardPage() {
   const currentFact = facts[currentFactIndex] || null;
 
   return (
-    <main className="relative min-h-screen bg-[#0F1117] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 p-6 md:p-12 pt-32 md:pt-36">
+    <main className="relative min-h-screen bg-gradient-to-b from-blue-50 via-slate-50 to-slate-50 p-6 md:p-12 pt-32 md:pt-36">
       {/* Visual background accents — anchored to this relatively-positioned
           <main>, not the viewport, so they no longer overlap the fixed
           PublicNavbar or sit outside the intended container. */}
-      <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-10 left-10 w-96 h-96 bg-blue-200/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-7xl mx-auto space-y-8 relative z-10">
 
         {/* User Welcome Banner */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800/80 pb-6 gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-black text-slate-100 tracking-tight">
+            <h1 className="text-3xl font-extrabold tracking-[-0.02em] text-slate-900">
               Study Dashboard
             </h1>
-            <p className="text-slate-400 text-sm mt-1.5">
-              Welcome back, <span className="text-indigo-400 font-semibold">{user?.fullName || 'Student'}</span>! Resume your active goals or start a new subject.
+            <p className="text-slate-600 text-sm mt-1.5 leading-relaxed">
+              Welcome back, <span className="text-blue-600 font-semibold">{user?.fullName || 'Student'}</span>! Resume your active goals or start a new subject.
             </p>
           </div>
 
           <button
             onClick={() => router.push('/onboarding')}
-            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 active:scale-95 cursor-pointer self-start md:self-center"
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold tracking-[0.01em] transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 active:scale-95 cursor-pointer self-start md:self-center"
           >
             <PlusCircle className="h-4 w-4" />
             <span>New Learning Path</span>
@@ -226,14 +233,14 @@ export default function DashboardPage() {
         </div>
 
         {errorMsg && (
-          <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-300 text-xs">
+          <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs">
             {errorMsg}
           </div>
         )}
 
         {isLoading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-500 space-y-3">
-            <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
             <span className="text-xs">Fetching learning summaries...</span>
           </div>
         ) : (
@@ -241,42 +248,52 @@ export default function DashboardPage() {
 
             {/* Left/Center Panel - Active roadmaps list */}
             <div className="lg:col-span-2 space-y-6">
-              <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-indigo-400" />
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-blue-600" />
                 <span>Active Learning Paths</span>
               </h2>
 
               {roadmaps.length === 0 ? (
-                <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-2xl text-center space-y-4">
-                  <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-full inline-block text-indigo-400">
+                <div className="p-8 bg-white border border-slate-100 shadow-sm rounded-2xl text-center space-y-4">
+                  <div className="p-3 bg-blue-50 rounded-full inline-block text-blue-600">
                     <GraduationCap className="h-8 w-8" />
                   </div>
-                  <h3 className="text-slate-300 font-bold">No roadmaps initialized</h3>
+                  <h3 className="text-slate-800 font-semibold">No roadmaps initialized</h3>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
                     You haven't initialized an AI-generated learning pathway yet. Click below to specify your topic target and durations!
                   </p>
                   <button
                     onClick={() => router.push('/onboarding')}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold tracking-[0.01em] transition-all shadow-md cursor-pointer"
                   >
-                    Set Career Goal
+                    Start Learning
                   </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
                   {roadmaps.map((r) => {
-                    // Compute basic progress calculations (days completed)
+                    // Real progress = days actually marked complete (Progress table),
+                    // not merely days that have notes generated.
                     const totalDays = r.days.length;
-                    const generatedNotesCount = r.days.filter((d: any) => d.topics.length > 0).length;
-                    const percentage = totalDays > 0 ? Math.round((generatedNotesCount / totalDays) * 100) : 0;
+                    const completedCount = r.days.filter((d: any) => completedDayIds.includes(d.id)).length;
+                    const percentage = totalDays > 0 ? Math.round((completedCount / totalDays) * 100) : 0;
+                    const isCourseComplete = totalDays > 0 && completedCount >= totalDays;
 
                     return (
                       <div
                         key={r.id}
-                        className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 hover:border-indigo-500/30 transition-colors flex flex-col justify-between gap-6"
+                        className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between gap-6"
                       >
                         <div className="space-y-2">
-                          <h3 className="text-md font-bold text-slate-200">{r.title}</h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-semibold text-slate-800">{r.title}</h3>
+                            {isCourseComplete && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                <Award className="h-3 w-3" />
+                                Completed
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center space-x-4 text-xs text-slate-500">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3.5 w-3.5" />
@@ -292,21 +309,21 @@ export default function DashboardPage() {
                         {/* Progress slider bar */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-slate-500">Topics Studied</span>
-                            <span className="text-indigo-400">{percentage}% ({generatedNotesCount}/{totalDays} Days)</span>
+                            <span className="text-slate-500">Days Completed</span>
+                            <span className={isCourseComplete ? 'text-emerald-600' : 'text-blue-600'}>{percentage}% ({completedCount}/{totalDays} Days)</span>
                           </div>
-                          <div className="w-full bg-slate-800 rounded-full h-1.5">
+                          <div className="w-full bg-slate-100 rounded-full h-1.5">
                             <div
-                              className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-1.5 rounded-full"
+                              className={`h-1.5 rounded-full bg-gradient-to-r ${isCourseComplete ? 'from-emerald-500 to-emerald-600' : 'from-blue-500 to-blue-600'}`}
                               style={{ width: `${Math.max(percentage, 5)}%` }}
                             />
                           </div>
                         </div>
 
-                        <div className="flex justify-end border-t border-slate-800/40 pt-4">
+                        <div className="flex justify-end border-t border-slate-100 pt-4">
                           <button
                             onClick={() => handleOpenRoadmap(r)}
-                            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-bold transition-all cursor-pointer group"
+                            className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-semibold transition-all cursor-pointer group"
                           >
                             <span>Open Study Workspace</span>
                             <ChevronRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
@@ -323,29 +340,29 @@ export default function DashboardPage() {
                 10 minutes (see the rotation useEffect above). Was Study Guide
                 History; that moved to the full-width slot below. */}
             <div className="space-y-6">
-              <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-                <Lightbulb className="h-5 w-5 text-amber-400" />
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-amber-500" />
                 <span>Did You Know?</span>
               </h2>
 
               {isFactsLoading ? (
-                <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl flex items-center justify-center text-slate-500 text-xs gap-2 py-12">
-                  <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
+                <div className="p-6 bg-white border border-slate-100 shadow-sm rounded-2xl flex items-center justify-center text-slate-500 text-xs gap-2 py-12">
+                  <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
                   <span>Generating personalized facts...</span>
                 </div>
               ) : !currentFact ? (
-                <div className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl text-center text-slate-500 py-12 text-xs">
+                <div className="p-6 bg-white border border-slate-100 shadow-sm rounded-2xl text-center text-slate-500 py-12 text-xs">
                   No facts available yet — generate a learning path to see facts tailored to your subjects.
                 </div>
               ) : (
                 <div
                   onClick={() => setIsFactExpanded((prev) => !prev)}
-                  className="bg-slate-900/40 border border-slate-800 hover:border-amber-500/30 rounded-2xl p-6 space-y-3 cursor-pointer transition-colors"
+                  className="bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-amber-200 rounded-2xl p-6 space-y-3 cursor-pointer transition-all"
                 >
-                  <p className="text-sm text-slate-200 leading-relaxed font-semibold">{currentFact.fact}</p>
+                  <p className="text-sm text-slate-800 leading-relaxed font-semibold">{currentFact.fact}</p>
 
                   {currentFact.relatedTopic && (
-                    <p className="text-[11px] text-amber-400 font-semibold">
+                    <p className="text-[11px] text-amber-600 font-semibold">
                       Related to: {currentFact.relatedTopic}
                     </p>
                   )}
@@ -356,7 +373,7 @@ export default function DashboardPage() {
                   </div>
 
                   {isFactExpanded && (
-                    <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800">
+                    <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-100">
                       {currentFact.detail || 'No additional detail available for this fact.'}
                     </p>
                   )}
@@ -364,16 +381,54 @@ export default function DashboardPage() {
               )}
             </div>
 
+            {/* Earned Badges — course-completion rewards from the Badge table */}
+            <div className="lg:col-span-3 bg-white border border-slate-100 shadow-sm rounded-2xl p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Award className="h-5 w-5 text-amber-500" />
+                <span>Achievements &amp; Badges</span>
+              </h2>
+
+              {badges.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">
+                  No badges yet. Finish every day of a roadmap to earn a course-completion badge.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {badges.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => setViewBadge(b)}
+                      className="text-left flex items-center gap-4 bg-gradient-to-br from-amber-50 to-white border border-amber-100 hover:border-amber-300 hover:shadow-md rounded-xl p-4 transition-all cursor-pointer"
+                      title="View badge details"
+                    >
+                      <div className="h-12 w-12 flex-shrink-0 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-sm shadow-amber-500/30">
+                        <Award className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-800 truncate">{b.title}</h4>
+                        {b.description && (
+                          <p className="text-[11px] text-slate-500 line-clamp-2">{b.description}</p>
+                        )}
+                        <p className="text-[11px] text-amber-600 font-medium mt-0.5">
+                          Earned {new Date(b.earnedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Trending Skills widget — in-demand skills pulled from market data */}
-            <div className="lg:col-span-3 bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-emerald-400" />
+            <div className="lg:col-span-3 bg-white border border-slate-100 shadow-sm rounded-2xl p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
                 <span>Trending Skills Right Now</span>
               </h2>
 
               {isTrendsLoading ? (
                 <div className="py-8 flex items-center justify-center text-slate-500 text-xs gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
+                  <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
                   <span>Loading market demand data...</span>
                 </div>
               ) : trends.length === 0 ? (
@@ -383,11 +438,11 @@ export default function DashboardPage() {
                   {trends.slice(0, 9).map((t: any) => (
                     <div
                       key={t._id || t.skill}
-                      className="flex items-center gap-2.5 bg-slate-950/60 border border-slate-800 hover:border-emerald-500/30 rounded-full pl-4 pr-2 py-1.5 transition-colors"
+                      className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 hover:border-emerald-300 rounded-full pl-4 pr-2 py-1.5 transition-colors"
                       title={`Source: ${t.source}`}
                     >
-                      <span className="text-xs font-semibold text-slate-200">{t.skill}</span>
-                      <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">{t.demandScore}</span>
+                      <span className="text-xs font-semibold text-slate-800">{t.skill}</span>
+                      <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{t.demandScore}</span>
                     </div>
                   ))}
                 </div>
@@ -397,8 +452,8 @@ export default function DashboardPage() {
             {/* Study Guide History — moved here from the narrow right panel,
                 now full-width with a responsive grid instead of a single
                 vertical stack, to make use of the extra space. */}
-            <div className="lg:col-span-3 bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+            <div className="lg:col-span-3 bg-white border border-slate-100 shadow-sm rounded-2xl p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                 <History className="h-5 w-5 text-amber-500" />
                 <span>Study Guide History</span>
               </h2>
@@ -412,21 +467,21 @@ export default function DashboardPage() {
                   {historyNotes.map((n) => (
                     <div
                       key={n.id}
-                      className="bg-slate-950/60 border border-slate-800 hover:border-slate-700 rounded-xl p-4.5 hover:bg-slate-900/90 transition-all flex justify-between items-center gap-4 group"
+                      className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl p-4.5 hover:bg-slate-100/70 transition-all flex justify-between items-center gap-4 group"
                     >
                       <div className="min-w-0 flex-1 space-y-1">
-                        <h4 className="text-xs font-bold text-slate-300 truncate">{n.title}</h4>
+                        <h4 className="text-xs font-semibold text-slate-700 truncate">{n.title}</h4>
                         <p className="text-[11px] text-slate-500 truncate">
                           {n.day?.roadmap?.title || 'Custom Path'} • Day {n.day?.dayNumber}
                         </p>
-                        <p className="text-[11px] text-slate-600">
+                        <p className="text-[11px] text-slate-400">
                           Generated: {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
 
                       <button
                         onClick={() => handleOpenHistoricalNote(n)}
-                        className="p-2 bg-indigo-600/10 border border-indigo-500/20 group-hover:bg-indigo-600 group-hover:border-indigo-600 text-indigo-400 group-hover:text-white rounded-lg transition-all cursor-pointer"
+                        className="p-2 bg-blue-50 border border-blue-100 group-hover:bg-blue-600 group-hover:border-blue-600 text-blue-600 group-hover:text-white rounded-lg transition-all cursor-pointer"
                         title="Open this lesson notes version"
                       >
                         <FolderOpen className="h-3.5 w-3.5" />
@@ -440,6 +495,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Badge detail popup (opens when a badge card is clicked) */}
+      <BadgeDetailModal badge={viewBadge} onClose={() => setViewBadge(null)} />
     </main>
   );
 }
