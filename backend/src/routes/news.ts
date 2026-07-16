@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import db from '../lib/db';
+import { runNewsFetch } from '../services/newsCron';
 
 const router = Router();
 
@@ -11,6 +12,8 @@ const TIMEFRAME_MS: Record<string, number> = {
   '3months': 90 * 24 * 60 * 60 * 1000,
   year: 365 * 24 * 60 * 60 * 1000,
 };
+
+let lastNewsFetch = 0;
 
 /**
  * GET /api/news
@@ -25,6 +28,12 @@ router.get('/', async (req: Request, res: Response): Promise<any> => {
     const search = String(req.query.search || '').trim();
     const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit), 10) || 20));
+
+    // M6: Trigger background update on page refresh (throttled to once per 5 min)
+    if (Date.now() - lastNewsFetch > 5 * 60 * 1000) {
+      lastNewsFetch = Date.now();
+      runNewsFetch().catch((err) => console.error('[api/news] Background update error:', err));
+    }
 
     const where: any = {};
     if (category && category !== 'all' && CATEGORIES.includes(category)) {
@@ -59,3 +68,4 @@ router.get('/', async (req: Request, res: Response): Promise<any> => {
 });
 
 export default router;
+

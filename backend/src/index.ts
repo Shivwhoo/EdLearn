@@ -1071,21 +1071,22 @@ app.get('/api/facts', authenticate, async (req: express.Request, res: express.Re
       : (user?.profile?.careerGoal || 'general computer science and technology');
 
     const systemPrompt = `You generate short, genuinely interesting "did you know" facts for a micro-learning feed.
-Facts must be factually accurate, specific (not vague truisms), and directly tied to one of the given subjects.
+Facts must be factually accurate, specific (not vague truisms), and cover a broad range of interesting cross-domain subjects (such as science, technology breakthroughs, space, history, human biology, nature, architecture, and design).
+The facts should NOT be limited to any single topic, but should be diverse, surprising, and engaging.
 You must return your output strictly in JSON format matching the schema below.
 Schema:
 {
   "facts": [
     {
       "fact": "string (one short punchy sentence, no more)",
-      "relatedTopic": "string (which subject this fact relates to)",
+      "relatedTopic": "string (the domain/subject this fact relates to, e.g. 'Space', 'History', 'Nature')",
       "detail": "string (2-4 sentences expanding on the fact with brief 'why'/'how' context — this is only shown after the user clicks to expand the fact, so it should add real explanation, not repeat the fact verbatim)"
     }
   ]
 }
 Return exactly 8 facts. Do not wrap output in markdown code blocks. Return only valid JSON.`;
 
-    const userPrompt = `Generate 8 short, interesting facts related to these subjects: ${subjectLine}.`;
+    const userPrompt = `Generate 8 diverse, surprising, and interesting cross-domain facts across science, tech history, biology, space, and culture. Make sure they are not just focused on a single topic, but represent a healthy mix of different fields.`;
 
     const responseText = await aiService.generate(userPrompt, {
       systemPrompt,
@@ -1104,9 +1105,8 @@ Return exactly 8 facts. Do not wrap output in markdown code blocks. Return only 
 
     const facts = Array.isArray(parsed?.facts) ? parsed.facts : [];
 
-    // 6 hours — long enough to avoid regenerating on every dashboard visit,
-    // short enough that facts stay reasonably fresh as the user's roadmap changes.
-    await redisCache.setCache(cacheKey, JSON.stringify(facts), 21600);
+    // M6: Cache for exactly 30 minutes (1800 seconds)
+    await redisCache.setCache(cacheKey, JSON.stringify(facts), 1800);
 
     res.json({ success: true, facts });
   } catch (error) {
