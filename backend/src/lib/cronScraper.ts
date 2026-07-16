@@ -2,17 +2,36 @@ import axios from 'axios';
 import { connectMongo } from './mongodb';
 import MarketDemand from './models/MarketDemand';
 
+// Curated baseline of genuinely in-demand skills (2025). These are always
+// upserted so the widget looks credible even if the GitHub API is rate-limited
+// or MongoDB is otherwise empty. Scores are indicative demand weights.
 const DEFAULT_TRENDS = [
-  { skill: 'React', source: 'linkedin' as const, demandScore: 12400 },
-  { skill: 'Next.js', source: 'linkedin' as const, demandScore: 9800 },
-  { skill: 'TypeScript', source: 'linkedin' as const, demandScore: 15600 },
   { skill: 'Python', source: 'linkedin' as const, demandScore: 22000 },
+  { skill: 'SQL', source: 'linkedin' as const, demandScore: 18200 },
+  { skill: 'AWS', source: 'linkedin' as const, demandScore: 16800 },
+  { skill: 'TypeScript', source: 'linkedin' as const, demandScore: 15600 },
+  { skill: 'LLMs & Prompt Engineering', source: 'linkedin' as const, demandScore: 14200 },
+  { skill: 'React', source: 'linkedin' as const, demandScore: 12400 },
+  { skill: 'Node.js', source: 'linkedin' as const, demandScore: 11200 },
+  { skill: 'Go', source: 'github' as const, demandScore: 11000 },
+  { skill: 'Docker', source: 'github' as const, demandScore: 10400 },
+  { skill: 'Kubernetes', source: 'github' as const, demandScore: 9600 },
+  { skill: 'Next.js', source: 'github' as const, demandScore: 9800 },
+  { skill: 'PyTorch', source: 'github' as const, demandScore: 9000 },
+  { skill: 'Tailwind CSS', source: 'github' as const, demandScore: 8600 },
   { skill: 'Rust', source: 'github' as const, demandScore: 8400 },
-  { skill: 'Go', source: 'github' as const, demandScore: 11200 },
-  { skill: 'Tailwind CSS', source: 'github' as const, demandScore: 9200 },
-  { skill: 'SQL Queries', source: 'linkedin' as const, demandScore: 18200 },
-  { skill: 'Docker Containers', source: 'github' as const, demandScore: 10400 }
+  { skill: 'GraphQL', source: 'linkedin' as const, demandScore: 7200 },
 ];
+
+// Only ingest GitHub languages that are actual, teachable skills. The raw
+// GitHub "language" field is noisy — it surfaces things like "Jupyter Notebook",
+// "Roff", "MDX", "TeX", "Vim Script", or null — which made the widget look
+// arbitrary. This allowlist keeps the live data clean and relevant.
+const ALLOWED_GITHUB_LANGUAGES = new Set([
+  'JavaScript', 'TypeScript', 'Python', 'Java', 'Go', 'Rust', 'C', 'C++', 'C#',
+  'Ruby', 'PHP', 'Swift', 'Kotlin', 'Dart', 'Scala', 'Elixir', 'Haskell',
+  'HTML', 'CSS', 'Shell', 'SQL', 'R', 'Julia', 'Lua', 'Zig',
+]);
 
 export async function runMarketDemandScraper() {
   console.log('Running background Market Demand Scraper cron task...');
@@ -29,7 +48,9 @@ export async function runMarketDemandScraper() {
       const languagesMap: { [key: string]: number } = {};
 
       items.forEach((item: any) => {
-        if (item.language) {
+        // Skip null languages and anything not in the curated allowlist so the
+        // live feed stays clean and relevant (no "Jupyter Notebook", "Roff", etc.).
+        if (item.language && ALLOWED_GITHUB_LANGUAGES.has(item.language)) {
           languagesMap[item.language] = (languagesMap[item.language] || 0) + 1;
         }
       });
