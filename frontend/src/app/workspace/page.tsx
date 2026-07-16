@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import LeftNavigationPanel from '@/components/Layout/LeftNavigationPanel';
 import InteractiveAssistant from '@/components/Layout/InteractiveAssistant';
 import LivingDocument from '@/components/Document/LivingDocument';
+import BadgeCelebrationModal from '@/components/Document/BadgeCelebrationModal';
 import { AudioPlayerDock } from '@/components/Audio/AudioPlayerDock';
 import { Compass, RefreshCw, AlertCircle, Users, HelpCircle, Menu, MessageSquare } from 'lucide-react';
 import axios from 'axios';
@@ -154,7 +155,7 @@ export default function WorkspacePage() {
           )}
 
           <button
-            onClick={handleGenerateContent}
+            onClick={() => handleGenerateContent(true)}
             disabled={isLoadingContent}
             className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50 rounded text-xs font-bold transition-all cursor-pointer"
             title="Generate a fresh new version of the study notes for this day"
@@ -204,6 +205,9 @@ export default function WorkspacePage() {
       {generatedContent && (
         <AudioPlayerDock sentences={sentencesRef.current} />
       )}
+
+      {/* Course-completion badge celebration (fires when the final day is done) */}
+      <BadgeCelebrationModal />
     </div>
   );
 }

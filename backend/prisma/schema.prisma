@@ -18,6 +18,22 @@ model User {
   progress      Progress[]
   credits       Int           @default(15)
   subscription  Subscription?
+  workspace Workspace?
+  badges Badge[]
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  badgeType   String
+  imageUrl    String?
+
+  earnedAt    DateTime @default(now())
 }
 
 model UserProfile {
@@ -77,10 +93,14 @@ model Citation {
 
 model Progress {
   id          String   @id @default(uuid())
+
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topicId     String
-  score       Int      @default(0)
+
+  roadmapId   String
+  dayId       String
+
+  score       Int      @default(100)
   completedAt DateTime @default(now())
 }
 
@@ -92,4 +112,23 @@ model Subscription {
   status     String
   tier       String   @default("FREE")
   expiresAt  DateTime
+}
+
+model Workspace {
+  id              String   @id @default(uuid())
+
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roadmapId       String?
+  currentDay      Int      @default(1)
+  currentMode     Int      @default(1)
+
+  selectedTopicId String?
+  topicTitle      String?
+
+  editorContent   String?  @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -15,9 +15,11 @@ import {
   FolderOpen,
   TrendingUp,
   Lightbulb,
-  ChevronDown
+  ChevronDown,
+  Award
 } from 'lucide-react';
 import axios from 'axios';
+import BadgeDetailModal from '@/components/Document/BadgeDetailModal';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -26,6 +28,9 @@ export default function DashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [roadmaps, setRoadmaps] = useState<any[]>([]);
   const [historyNotes, setHistoryNotes] = useState<any[]>([]);
+  const [badges, setBadges] = useState<any[]>([]);
+  const [viewBadge, setViewBadge] = useState<any | null>(null);
+  const [completedDayIds, setCompletedDayIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -65,6 +70,8 @@ export default function DashboardPage() {
         if (res.data?.success) {
           setRoadmaps(res.data.roadmaps || []);
           setHistoryNotes(res.data.topics || []);
+          setBadges(res.data.badges || []);
+          setCompletedDayIds(res.data.completedDayIds || []);
         } else {
           setErrorMsg('Failed to load user progress details.');
         }
@@ -265,10 +272,12 @@ export default function DashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-4">
                   {roadmaps.map((r) => {
-                    // Compute basic progress calculations (days completed)
+                    // Real progress = days actually marked complete (Progress table),
+                    // not merely days that have notes generated.
                     const totalDays = r.days.length;
-                    const generatedNotesCount = r.days.filter((d: any) => d.topics.length > 0).length;
-                    const percentage = totalDays > 0 ? Math.round((generatedNotesCount / totalDays) * 100) : 0;
+                    const completedCount = r.days.filter((d: any) => completedDayIds.includes(d.id)).length;
+                    const percentage = totalDays > 0 ? Math.round((completedCount / totalDays) * 100) : 0;
+                    const isCourseComplete = totalDays > 0 && completedCount >= totalDays;
 
                     return (
                       <div
@@ -276,7 +285,15 @@ export default function DashboardPage() {
                         className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between gap-6"
                       >
                         <div className="space-y-2">
-                          <h3 className="text-base font-semibold text-slate-800">{r.title}</h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-semibold text-slate-800">{r.title}</h3>
+                            {isCourseComplete && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                <Award className="h-3 w-3" />
+                                Completed
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center space-x-4 text-xs text-slate-500">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3.5 w-3.5" />
@@ -292,12 +309,12 @@ export default function DashboardPage() {
                         {/* Progress slider bar */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-slate-500">Topics Studied</span>
-                            <span className="text-blue-600">{percentage}% ({generatedNotesCount}/{totalDays} Days)</span>
+                            <span className="text-slate-500">Days Completed</span>
+                            <span className={isCourseComplete ? 'text-emerald-600' : 'text-blue-600'}>{percentage}% ({completedCount}/{totalDays} Days)</span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5">
                             <div
-                              className="bg-gradient-to-r from-blue-500 to-blue-600 h-1.5 rounded-full"
+                              className={`h-1.5 rounded-full bg-gradient-to-r ${isCourseComplete ? 'from-emerald-500 to-emerald-600' : 'from-blue-500 to-blue-600'}`}
                               style={{ width: `${Math.max(percentage, 5)}%` }}
                             />
                           </div>
@@ -360,6 +377,44 @@ export default function DashboardPage() {
                       {currentFact.detail || 'No additional detail available for this fact.'}
                     </p>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Earned Badges — course-completion rewards from the Badge table */}
+            <div className="lg:col-span-3 bg-white border border-slate-100 shadow-sm rounded-2xl p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Award className="h-5 w-5 text-amber-500" />
+                <span>Achievements &amp; Badges</span>
+              </h2>
+
+              {badges.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">
+                  No badges yet. Finish every day of a roadmap to earn a course-completion badge.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {badges.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => setViewBadge(b)}
+                      className="text-left flex items-center gap-4 bg-gradient-to-br from-amber-50 to-white border border-amber-100 hover:border-amber-300 hover:shadow-md rounded-xl p-4 transition-all cursor-pointer"
+                      title="View badge details"
+                    >
+                      <div className="h-12 w-12 flex-shrink-0 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-sm shadow-amber-500/30">
+                        <Award className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-800 truncate">{b.title}</h4>
+                        {b.description && (
+                          <p className="text-[11px] text-slate-500 line-clamp-2">{b.description}</p>
+                        )}
+                        <p className="text-[11px] text-amber-600 font-medium mt-0.5">
+                          Earned {new Date(b.earnedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -440,6 +495,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Badge detail popup (opens when a badge card is clicked) */}
+      <BadgeDetailModal badge={viewBadge} onClose={() => setViewBadge(null)} />
     </main>
   );
 }

@@ -38,6 +38,15 @@ export interface UserSession {
   fullName: string;
 }
 
+export interface Badge {
+  id: string;
+  title: string;
+  description?: string | null;
+  badgeType: string;
+  imageUrl?: string | null;
+  earnedAt: string;
+}
+
 export interface WorkspaceState {
   // Auth State
   token: string | null;
@@ -76,6 +85,13 @@ export interface WorkspaceState {
   activeVersionId: string | null;
   restoringSession: boolean;
 
+  // Scroll-based completion tracking
+  completedDays: Set<string>;
+
+  // Badges (course-completion rewards, persisted in the backend)
+  badges: Badge[];
+  newBadge: Badge | null; // set when a badge is freshly earned, drives the celebration modal
+
   // Actions
   login: (token: string, user: UserSession) => void;
   logout: () => void;
@@ -91,7 +107,11 @@ export interface WorkspaceState {
   // History Actions
   fetchNotesHistory: (dayId: string) => Promise<void>;
   setActiveVersion: (versionId: string) => void;
-  
+
+  // Completion Actions
+  markDayCompleted: (dayId: string) => Promise<void>;
+  dismissNewBadge: () => void;
+
   // Socratic Actions
   incrementSocraticRetry: () => void;
   resetSocratic: () => void;
@@ -116,6 +136,16 @@ const getInitialToken = () => {
     return localStorage.getItem('edlearn_token') || null;
   }
   return null;
+};
+
+const getInitialCompletedDays = (): Set<string> => {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('edlearn_completed_days');
+      if (stored) return new Set(JSON.parse(stored));
+    } catch {}
+  }
+  return new Set();
 };
 
 const getInitialUser = () => {
@@ -158,6 +188,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   notesHistory: [],
   activeVersionId: null,
   restoringSession: getInitialToken() !== null,
+  completedDays: getInitialCompletedDays(),
+  badges: [],
+  newBadge: null,
 
   login: (token, user) => {
     if (typeof window !== 'undefined') {
@@ -172,6 +205,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (typeof window !== 'undefined') {
       localStorage.removeItem('edlearn_token');
       localStorage.removeItem('edlearn_user');
+      localStorage.removeItem('edlearn_completed_days');
       delete axios.defaults.headers.common['Authorization'];
     }
     set({ 
@@ -185,7 +219,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       activeSentenceIndex: -1,
       notesHistory: [],
       activeVersionId: null,
-      restoringSession: false
+      restoringSession: false,
+      completedDays: new Set(),
+      badges: [],
+      newBadge: null,
     });
   },
 
@@ -200,9 +237,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const res = await axios.get('/api/auth/me');
       if (res.data?.success) {
         const { user } = res.data;
-        set({ 
+        set({
           user: { id: user.id, email: user.email, fullName: user.fullName },
-          userProfile: user.profile || null 
+          userProfile: user.profile || null
+        });
+
+        // Hydrate completion + badges from the database (source of truth),
+        // merging any day IDs already tracked locally so nothing regresses.
+        const serverCompleted: string[] = user.completedDayIds || [];
+        set((state) => {
+          const merged = new Set(state.completedDays);
+          serverCompleted.forEach((id) => merged.add(id));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('edlearn_completed_days', JSON.stringify([...merged]));
+          }
+          return { completedDays: merged, badges: user.badges || [] };
         });
 
         // Restore active cached roadmap if available
@@ -298,7 +347,53 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
   },
   setLoadingContent: (isLoading) => set({ isLoadingContent: isLoading }),
-  
+
+  markDayCompleted: async (dayId) => {
+    const alreadyLocal = get().completedDays.has(dayId);
+
+    // Optimistic local update so the UI (green check + toast) reacts instantly,
+    // even before the network round-trip resolves.
+    set((state) => {
+      const next = new Set(state.completedDays);
+      next.add(dayId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('edlearn_completed_days', JSON.stringify([...next]));
+      }
+      return { completedDays: next };
+    });
+
+    // Persist to the backend (Progress table). This is the source of truth and
+    // is what awards the course-completion badge once every day is done.
+    try {
+      const res = await axios.post('/api/progress/complete', { dayId });
+      if (res.data?.success) {
+        const serverCompleted: string[] = res.data.completedDayIds || [];
+        set((state) => {
+          const reconciled = new Set(state.completedDays);
+          serverCompleted.forEach((id) => reconciled.add(id));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('edlearn_completed_days', JSON.stringify([...reconciled]));
+          }
+          const earned = res.data.newlyEarnedBadge;
+          return {
+            completedDays: reconciled,
+            ...(earned
+              ? { badges: [earned, ...state.badges], newBadge: earned }
+              : {}),
+          };
+        });
+      }
+    } catch (err) {
+      // Network/DB failure shouldn't wipe the optimistic local state — the day
+      // stays marked locally and will re-sync from the server on next load.
+      if (!alreadyLocal) {
+        console.warn('Failed to persist day completion to backend:', err);
+      }
+    }
+  },
+
+  dismissNewBadge: () => set({ newBadge: null }),
+
   incrementSocraticRetry: () => set((state) => ({ socraticRetryCount: state.socraticRetryCount + 1 })),
   resetSocratic: () => set({ socraticRetryCount: 0, socraticAnsweredCorrectly: null, socraticAttempts: [] }),
   setSocraticAnswered: (correct) => set({ socraticAnsweredCorrectly: correct }),
