@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { MessageSquare, Users, Sparkles, Send, RefreshCw, ThumbsUp, HelpCircle } from 'lucide-react';
-import axios from 'axios';
+import api from '@/lib/axiosConfig';
 import { redirectToApp, appForIntent } from '@/lib/ssoHandoff';
 
 const APP_LABELS: Record<'mentor' | 'career' | 'quiz', string> = {
@@ -43,7 +43,7 @@ export const InteractiveAssistant: React.FC = () => {
     if (!currentDay) return;
     setIsLoadingThreads(true);
     try {
-      const response = await axios.get(`/api/doubt?topicId=${currentDay.id}`);
+      const response = await api.get(`/api/doubt?topicId=${currentDay.id}`);
       setThreads(response.data.threads || []);
     } catch (e) {
       console.error('Fetch threads failed:', e);
@@ -66,7 +66,7 @@ export const InteractiveAssistant: React.FC = () => {
       // (Person 1's /api/sso/handoff) instead of answering it here.
       let intent: 'learn' | 'mentor' | 'career' | 'quiz' = 'learn';
       try {
-        const classifyRes = await axios.post('/api/assistant/classify', { message: userMsg });
+        const classifyRes = await api.post('/api/assistant/classify', { message: userMsg });
         if (classifyRes.data?.success && classifyRes.data?.label) {
           intent = classifyRes.data.label;
         }
@@ -105,7 +105,7 @@ export const InteractiveAssistant: React.FC = () => {
         : `You are an expert tutor. Answer questions about "${currentDay.title}" by connecting it to unrelated domains (e.g. cooking, space, sports) through creative analogies.`;
 
       // Call route
-      const response = await axios.post('/api/generate', {
+      const response = await api.post('/api/generate', {
         topic: currentDay.title,
         mode: 1, // trigger basic QA
         difficulty: 'Intermediate',
@@ -129,7 +129,7 @@ export const InteractiveAssistant: React.FC = () => {
   const handleCreateThread = async () => {
     if (!newThreadTitle.trim() || !newThreadContent.trim() || !currentDay) return;
     try {
-      await axios.post('/api/doubt', {
+      await api.post('/api/doubt', {
         action: 'createThread',
         topicId: currentDay.id,
         title: newThreadTitle,
@@ -150,7 +150,7 @@ export const InteractiveAssistant: React.FC = () => {
     if (!commentContent || !commentContent.trim()) return;
 
     try {
-      await axios.post('/api/doubt', {
+      await api.post('/api/doubt', {
         action: 'createComment',
         threadId,
         content: commentContent,
@@ -165,7 +165,7 @@ export const InteractiveAssistant: React.FC = () => {
 
   const handleUpvote = async (threadId: string) => {
     try {
-      await axios.post('/api/doubt', {
+      await api.post('/api/doubt', {
         action: 'upvoteThread',
         threadId,
         // userId is read from JWT on the backend; no need to send it
