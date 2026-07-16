@@ -6,95 +6,15 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import {
   ArrowRight,
   Bot,
-  ListChecks,
-  Compass,
   Users,
-  MessageCircle,
-  BarChart3,
-  UserPlus,
-  Target,
-  Rocket,
   ShieldCheck,
   Zap,
   GraduationCap,
-  Quote,
 } from 'lucide-react';
 import Footer from '@/components/Layout/Footer';
-
-const FEATURES = [
-  {
-    icon: Bot,
-    title: 'AI-Powered Tutor',
-    description: 'Get personalized help from our intelligent AI tutor available 24/7.',
-  },
-  {
-    icon: ListChecks,
-    title: 'Interactive Quizzes',
-    description: 'Test your knowledge with adaptive quizzes that track your progress.',
-  },
-  {
-    icon: Compass,
-    title: 'Career Guidance',
-    description: 'Find your path with personalized career recommendations and insights.',
-  },
-  {
-    icon: Users,
-    title: 'Live Mentor Sessions',
-    description: 'Connect with experienced mentors for 1-on-1 guidance.',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Doubt Forum',
-    description: 'Ask questions and get answers from the EdLearn community.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Progress Tracking',
-    description: 'Monitor your learning journey with detailed analytics and insights.',
-  },
-];
-
-const STEPS = [
-  {
-    icon: UserPlus,
-    title: 'Create Your Account',
-    description: 'Sign up for free and set up your learning profile in minutes.',
-  },
-  {
-    icon: Target,
-    title: 'Choose Your Learning Path',
-    description: 'Select topics, set goals, and get personalized recommendations.',
-  },
-  {
-    icon: Rocket,
-    title: 'Start Learning & Growing',
-    description: 'Access AI tutors, quizzes, mentors, and track your progress.',
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    quote:
-      'EdLearn completely changed how I study. The AI tutor helps me understand complex topics instantly.',
-    name: 'Sarah J.',
-    role: 'Computer Science Student',
-    initials: 'SJ',
-  },
-  {
-    quote:
-      'The career guidance feature helped me discover my passion. I landed my dream internship!',
-    name: 'Michael O.',
-    role: 'Engineering Graduate',
-    initials: 'MO',
-  },
-  {
-    quote:
-      'Having a mentor through EdLearn gave me the confidence to start my own business.',
-    name: 'Amina K.',
-    role: 'Entrepreneurship Student',
-    initials: 'AK',
-  },
-];
+import NewsFeed from '@/components/Landing/NewsFeed';
+import MediaFeed from '@/components/Landing/MediaFeed';
+import BookCarousel from '@/components/Landing/BookCarousel';
 
 export default function LandingPage() {
   const { token } = useWorkspaceStore();
@@ -141,7 +61,7 @@ export default function LandingPage() {
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <Link
-                href="#how-it-works"
+                href="#briefing"
                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-slate-300 text-slate-700 rounded-xl font-bold transition-all cursor-pointer"
               >
                 <span>See How It Works</span>
@@ -215,97 +135,24 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="bg-slate-50 py-20 lg:py-28 scroll-mt-20">
+      {/* World & Market Briefing (News) */}
+      <section id="briefing" className="bg-slate-50 py-16 lg:py-24 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">Features</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-[-0.01em] text-slate-900">
-              Everything you need in one platform
-            </h2>
-            <p className="text-slate-600 mt-4 leading-relaxed max-w-[65ch] mx-auto">
-              EdLearn brings tutoring, practice, mentorship, and career guidance together so you
-              never have to juggle five different tools.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map((feature) => (
-              <div
-                key={feature.title}
-                className="group bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-              >
-                <div className="p-3 bg-blue-50 group-hover:bg-blue-600 rounded-xl text-blue-600 group-hover:text-white w-fit mb-4 transition-colors">
-                  <feature.icon className="h-6 w-6" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-2">{feature.title}</h3>
-                <p className="text-sm leading-relaxed text-slate-600">{feature.description}</p>
-              </div>
-            ))}
-          </div>
+          <NewsFeed />
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 lg:py-28 scroll-mt-20">
+      {/* Talks & Podcasts (Media) */}
+      <section className="py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">How it works</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-[-0.01em] text-slate-900">
-              Get started in 3 simple steps
-            </h2>
-          </div>
-
-          <div className="relative grid md:grid-cols-3 gap-10 md:gap-6">
-            <div className="hidden md:block absolute top-8 left-[16.5%] right-[16.5%] h-0.5 border-t-2 border-dashed border-blue-200" />
-            {STEPS.map((step, index) => (
-              <div key={step.title} className="relative text-center flex flex-col items-center">
-                <div className="relative z-10 flex items-center justify-center h-16 w-16 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/20 mb-6">
-                  <step.icon className="h-7 w-7" />
-                  <span className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center rounded-full bg-white border-2 border-blue-600 text-blue-600 text-xs font-extrabold">
-                    {index + 1}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-2">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-slate-600 max-w-xs">{step.description}</p>
-              </div>
-            ))}
-          </div>
+          <MediaFeed />
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="bg-slate-50 py-20 lg:py-28">
+      {/* Trending Books */}
+      <section className="bg-slate-50 py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">Testimonials</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-[-0.01em] text-slate-900">
-              Trusted by thousands of learners
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((testimonial) => (
-              <figure
-                key={testimonial.name}
-                className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col"
-              >
-                <Quote className="h-6 w-6 text-blue-200 mb-3" />
-                <blockquote className="text-sm leading-relaxed text-slate-700 flex-1">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-                <figcaption className="flex items-center gap-3 mt-6">
-                  <div className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                    {testimonial.initials}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{testimonial.name}</p>
-                    <p className="text-xs text-slate-500">{testimonial.role}</p>
-                  </div>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
+          <BookCarousel />
         </div>
       </section>
 

@@ -114,6 +114,61 @@ model Subscription {
   expiresAt  DateTime
 }
 
+model NewsArticle {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  source      String
+  url         String   @unique
+  imageUrl    String?
+  category    String   // "tech", "finance", "world", "medical", "science", "education"
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([publishedAt])
+}
+
+model MediaContent {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @db.Text
+  thumbnailUrl String
+  contentUrl   String   @unique // YouTube URL or MP3 audio URL
+  contentType  String   // "video" or "audio"
+  platform     String   // "youtube", "podcastindex"
+  channelName  String
+  duration     Int?     // In seconds
+  publishedAt  DateTime
+  category     String   // "business", "science", "history", "health", "tech", "culture"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([contentType])
+  @@index([publishedAt])
+}
+
+model BookSummary {
+  id                    String   @id @default(cuid())
+  title                 String
+  author                String
+  coverImage            String
+  description           String   @db.Text
+  threeSentenceTakeaway String   @db.Text
+  genre                 String   // "business", "tech", "science", "self-improvement", "history", "health"
+  buyLink               String?  // Affiliate or Amazon link
+  rating                Float?   // Average rating from API
+  publishedAt           DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([title, author])
+  @@index([genre])
+  @@index([rating])
+}
+
 model Workspace {
   id              String   @id @default(uuid())
 

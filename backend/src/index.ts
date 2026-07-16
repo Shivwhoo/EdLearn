@@ -17,6 +17,10 @@ import { authenticate, AuthenticatedRequest } from './middleware/auth';
 import { redisCache } from './lib/redis';
 import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
+import newsRouter from './routes/news';
+import mediaRouter from './routes/media';
+import booksRouter from './routes/books';
+import { startContentCrons } from './services/contentCrons';
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
@@ -60,6 +64,11 @@ app.use('/api/tts/audio', express.static(path.join(__dirname, '../tts-audio')));
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', provider: aiService.getActiveProviderName() });
 });
+
+// --- Public dynamic-content endpoints (landing page + deep-dive pages) ---
+app.use('/api/news', newsRouter);
+app.use('/api/media', mediaRouter);
+app.use('/api/books', booksRouter);
 
 // --- Authentication Endpoints ---
 
@@ -1294,6 +1303,10 @@ async function startServer() {
     startMarketWorker().catch((err) => {
       console.warn('[BullMQ] Worker startup error (non-fatal):', err?.message || err);
     });
+    // Fire-and-forget: content crons (news/media/books) are optional too
+    startContentCrons().catch((err) => {
+      console.warn('[ContentCrons] Startup error (non-fatal):', err?.message || err);
+    });
   });
 }
 
@@ -1301,4 +1314,4 @@ startServer().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
-
+// (content sections: news/media/books routers + crons wired above)
