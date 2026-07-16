@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+
 export type SsoApp = 'edmentor' | 'edcompass' | 'edquiz';
 
 /**
@@ -15,7 +16,14 @@ export type SsoApp = 'edmentor' | 'edcompass' | 'edquiz';
  */
 export async function redirectToApp(app: SsoApp, topic?: string): Promise<boolean> {
   try {
-    const res = await axios.post('/api/sso/handoff', { app, topic });
+    // Read token from localStorage since this is a utility function outside React
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await axios.post('/api/sso/handoff', { app, topic }, { headers });
     if (res.data?.success && res.data?.url) {
       window.location.href = res.data.url;
       return true;

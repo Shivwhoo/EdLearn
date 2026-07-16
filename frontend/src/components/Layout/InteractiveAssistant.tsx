@@ -11,7 +11,7 @@ const APP_LABELS: Record<'mentor' | 'career' | 'quiz', string> = {
 };
 
 export const InteractiveAssistant: React.FC = () => {
-  const { currentDay, activeMode, user } = useWorkspaceStore();
+  const { currentDay, activeMode, user, token } = useWorkspaceStore();
   const [activeTab, setActiveTab] = useState<'chat' | 'forum'>('chat');
   const [chatType, setChatType] = useState<'focused' | 'cross'>('focused');
 
@@ -30,7 +30,9 @@ export const InteractiveAssistant: React.FC = () => {
   // Sync / fetch forum threads from MongoDB when day changes
   useEffect(() => {
     if (!currentDay) return;
-    fetchForumThreads();
+
+    // fetchForumThreads();   // <-- Comment this line
+
     setChatMessages([
       {
         role: 'assistant',
@@ -38,20 +40,22 @@ export const InteractiveAssistant: React.FC = () => {
       },
     ]);
   }, [currentDay]);
-
-  const fetchForumThreads = async () => {
-    if (!currentDay) return;
-    setIsLoadingThreads(true);
-    try {
-      const response = await axios.get(`/api/doubt?topicId=${currentDay.id}`);
-      setThreads(response.data.threads || []);
-    } catch (e) {
-      console.error('Fetch threads failed:', e);
-    } finally {
-      setIsLoadingThreads(false);
-    }
-  };
-
+  /*
+    const fetchForumThreads = async () => {
+      if (!currentDay) return;
+      setIsLoadingThreads(true);
+      try {
+        const response = await axios.get(`/api/doubt?topicId=${currentDay.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setThreads(response.data.threads || []);
+      } catch (e) {
+        console.error('Fetch threads failed:', e);
+      } finally {
+        setIsLoadingThreads(false);
+      }
+    };
+  */
   const handleSendChat = async () => {
     if (!chatInput.trim() || !currentDay) return;
     const userMsg = chatInput;
@@ -66,7 +70,9 @@ export const InteractiveAssistant: React.FC = () => {
       // (Person 1's /api/sso/handoff) instead of answering it here.
       let intent: 'learn' | 'mentor' | 'career' | 'quiz' = 'learn';
       try {
-        const classifyRes = await axios.post('/api/assistant/classify', { message: userMsg });
+        const classifyRes = await axios.post('/api/assistant/classify', { message: userMsg }, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (classifyRes.data?.success && classifyRes.data?.label) {
           intent = classifyRes.data.label;
         }
@@ -110,6 +116,8 @@ export const InteractiveAssistant: React.FC = () => {
         mode: 1, // trigger basic QA
         difficulty: 'Intermediate',
         url: '', // Rely on wiki search
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       // Simple mock fallback to prevent rate limits
@@ -136,6 +144,9 @@ export const InteractiveAssistant: React.FC = () => {
         content: newThreadContent,
         // authorName comes from the JWT on the backend; send display name as hint
         authorName: user?.fullName || 'Student',
+        userId: user?.id,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       setNewThreadTitle('');
       setNewThreadContent('');
@@ -155,6 +166,9 @@ export const InteractiveAssistant: React.FC = () => {
         threadId,
         content: commentContent,
         authorName: user?.fullName || 'Student',
+        userId: user?.id,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       setCommentInputs({ ...commentInputs, [threadId]: '' });
       fetchForumThreads();
@@ -169,6 +183,9 @@ export const InteractiveAssistant: React.FC = () => {
         action: 'upvoteThread',
         threadId,
         // userId is read from JWT on the backend; no need to send it
+        userId: user?.id,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       fetchForumThreads();
     } catch (e) {
@@ -182,18 +199,16 @@ export const InteractiveAssistant: React.FC = () => {
       <div className="flex border-b border-slate-100">
         <button
           onClick={() => setActiveTab('chat')}
-          className={`flex-1 py-3 text-center text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${
-            activeTab === 'chat' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+          className={`flex-1 py-3 text-center text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${activeTab === 'chat' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
         >
           <Sparkles className="h-4 w-4" />
           <span>AI Tutor</span>
         </button>
         <button
           onClick={() => setActiveTab('forum')}
-          className={`flex-1 py-3 text-center text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${
-            activeTab === 'forum' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+          className={`flex-1 py-3 text-center text-xs font-semibold uppercase tracking-wider flex items-center justify-center space-x-1.5 border-b-2 ${activeTab === 'forum' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
         >
           <MessageSquare className="h-4 w-4" />
           <span>Doubt Forum</span>
@@ -209,17 +224,15 @@ export const InteractiveAssistant: React.FC = () => {
             <div className="flex space-x-1">
               <button
                 onClick={() => setChatType('focused')}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  chatType === 'focused' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
-                }`}
+                className={`px-2 py-1 text-xs rounded transition-colors ${chatType === 'focused' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
+                  }`}
               >
                 Focused
               </button>
               <button
                 onClick={() => setChatType('cross')}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  chatType === 'cross' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
-                }`}
+                className={`px-2 py-1 text-xs rounded transition-colors ${chatType === 'cross' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
+                  }`}
               >
                 Cross-Domain
               </button>
@@ -230,9 +243,8 @@ export const InteractiveAssistant: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {chatMessages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-2.5 max-w-[280px] rounded-lg text-xs leading-relaxed ${
-                  msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 border border-slate-200 text-slate-800'
-                }`}>
+                <div className={`p-2.5 max-w-[280px] rounded-lg text-xs leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 border border-slate-200 text-slate-800'
+                  }`}>
                   {msg.content}
                 </div>
               </div>

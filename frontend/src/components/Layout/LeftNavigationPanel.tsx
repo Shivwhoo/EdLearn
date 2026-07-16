@@ -13,6 +13,7 @@ export const LeftNavigationPanel: React.FC = () => {
     userProfile,
     logout,
     user,
+    token,
   } = useWorkspaceStore();
 
   const [showPasswordModal, setShowPasswordModal] = React.useState(false);
@@ -45,6 +46,8 @@ export const LeftNavigationPanel: React.FC = () => {
       const res = await axios.post('/api/auth/change-password', {
         currentPassword,
         newPassword
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.data?.success) {

@@ -17,7 +17,7 @@ import { authenticate, AuthenticatedRequest } from './middleware/auth';
 import { redisCache } from './lib/redis';
 import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
-
+import passport from './auth/google';
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -39,6 +39,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
+app.use(passport.initialize());
+
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
 
@@ -46,6 +48,36 @@ app.use(express.json({ limit: '1mb' }));
 // frontend rewrite ("/api/:path*" -> backend) already proxies it — see
 // frontend/next.config.ts.
 app.use('/api/tts/audio', express.static(path.join(__dirname, '../tts-audio')));
+
+// Google OAuth Routes
+app.get('/api/auth/google', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(500).json({ error: 'Google OAuth is not configured' });
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
+
+app.get(
+  '/api/auth/google/callback',
+  passport.authenticate('google', { session: false }),
+  (req, res) => {
+    try {
+      const { token } = (req.user as any);
+      console.log('✅ Token generated:', token ? 'Yes' : 'No');
+
+      // ✅ This should redirect to your frontend callback
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}`;
+      console.log('🔀 Redirecting to:', redirectUrl);
+
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('❌ Callback error:', error);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
+    }
+  }
+);
 
 // 1. Health Probe
 app.get('/api/health', (req, res) => {
@@ -427,11 +459,41 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
   try {
     const { topic, mode, difficulty, url, dayId } = req.body;
 
-    if (!topic || !mode || !difficulty) {
-      return res.status(400).json({ error: 'Missing required parameters: topic, mode, difficulty' });
+    console.log("========== GENERATE ==========");
+    console.log("Request Body:", req.body);
+    console.log("mode =", mode);
+    console.log("typeof mode =", typeof mode);
+    console.log("==============================");
+
+    if (
+      !topic ||
+      mode === undefined ||
+      mode === null ||
+      !difficulty
+    ) {
+      return res.status(400).json({
+        error: 'Missing required parameters: topic, mode, difficulty',
+      });
     }
 
-    const modeNumber = parseInt(mode, 10);
+    let modeNumber: number;
+
+    if (typeof mode === "number") {
+      modeNumber = mode;
+    } else {
+      const modeMap: Record<string, number> = {
+        learn: 1,
+        socratic: 2,
+        accelerator: 3,
+        interview: 4,
+        revision: 5,
+        quiz: 6,
+      };
+
+      modeNumber = modeMap[String(mode).toLowerCase()] ?? 1;
+    }
+
+    console.log("Resolved mode =", modeNumber);
 
     // M2: Cache key must include mode — Socratic vs. Accelerator notes are different content
     const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
@@ -468,7 +530,7 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
           }
         }
 
-        return res.json(parsedContent);
+        return res.json({ success: true, data: parsedContent });
       } catch (parseErr) {
         console.warn('Failed to parse cached JSON notes, generating fresh notes...');
       }

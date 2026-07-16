@@ -40,29 +40,49 @@ export default function DashboardPage() {
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
   const [isFactExpanded, setIsFactExpanded] = useState(false);
 
+  // ✅ Helper to get token from store OR localStorage
+  const getAuthToken = () => {
+    if (typeof window === 'undefined') {
+      return token;
+    }
+
+    return token || localStorage.getItem('token') || null;
+  };
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Protected route check
+  // ✅ FIXED: Protected route check - checks both store and localStorage
   useEffect(() => {
-    if (isMounted && !token) {
-      router.push('/login');
-    }
-  }, [isMounted, token, router]);
+    if (isMounted) {
+      const authToken = getAuthToken();
+      console.log('🔍 Dashboard - Token exists:', authToken ? 'Yes' : 'No');
 
-  // Fetch summary history logs
+      if (!authToken) {
+        console.log('❌ No token, redirecting to login');
+        router.push('/login');
+        return;
+      }
+      console.log('✅ Dashboard - User authenticated');
+    }
+  }, [isMounted, router]);
+
+  // ✅ FIXED: Fetch summary - uses token from store or localStorage
   useEffect(() => {
-    if (!token || !isMounted) return;
+    const authToken = getAuthToken();
+    if (!authToken || !isMounted) return;
 
     const fetchSummary = async () => {
       setIsLoading(true);
       setErrorMsg('');
       try {
+        console.log('📡 Fetching dashboard data...');
         const res = await axios.get('/api/dashboard/summary', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         });
         if (res.data?.success) {
+          console.log('✅ Data loaded successfully');
           setRoadmaps(res.data.roadmaps || []);
           setHistoryNotes(res.data.topics || []);
         } else {
@@ -73,6 +93,7 @@ export default function DashboardPage() {
         // If token is expired/invalid, clear it and force re-login
         if (err.response?.status === 401) {
           logout();
+          localStorage.removeItem('token');
           router.push('/login');
           return;
         }
@@ -84,16 +105,21 @@ export default function DashboardPage() {
 
     fetchSummary();
 
-  }, [token, isMounted]);
+  }, [token, isMounted, router, logout]);
 
-  // Fetch trending in-demand skills (market demand indicators)
+  // ✅ FIXED: Fetch trending - uses token from store or localStorage
   useEffect(() => {
-    if (!token || !isMounted) return;
+    const authToken = getAuthToken();
+    if (!authToken || !isMounted) return;
 
     const fetchTrends = async () => {
       setIsTrendsLoading(true);
       try {
-        const res = await axios.get('/api/market-demand');
+        const res = await axios.get('/api/market-demand', {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
         if (res.data?.success) {
           setTrends(res.data.trends || []);
         }
@@ -107,14 +133,19 @@ export default function DashboardPage() {
     fetchTrends();
   }, [token, isMounted]);
 
-  // Fetch personalized "Did You Know?" facts feed
+  // ✅ FIXED: Fetch facts - uses token from store or localStorage
   useEffect(() => {
-    if (!token || !isMounted) return;
+    const authToken = getAuthToken();
+    if (!authToken || !isMounted) return;
 
     const fetchFacts = async () => {
       setIsFactsLoading(true);
       try {
-        const res = await axios.get('/api/facts');
+        const res = await axios.get('/api/facts', {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
         if (res.data?.success) {
           setFacts(res.data.facts || []);
           setCurrentFactIndex(0);
@@ -147,14 +178,21 @@ export default function DashboardPage() {
 
   // Open an active roadmap in the workspace
   const handleOpenRoadmap = async (targetRoadmap: any) => {
+    const authToken = getAuthToken();
     try {
       await axios.post('/api/user/active-roadmap', { roadmapId: targetRoadmap.id }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
     } catch (err) {
       console.warn('Failed to persist active roadmap in cache:', err);
     }
     setRoadmap(targetRoadmap);
+    if (
+      targetRoadmap.days &&
+      targetRoadmap.days.length > 0
+    ) {
+      selectDay(targetRoadmap.days[0]);
+    }
     router.push('/workspace');
   };
 
@@ -170,9 +208,10 @@ export default function DashboardPage() {
     );
     if (!targetDay) return;
 
+    const authToken = getAuthToken();
     try {
       await axios.post('/api/user/active-roadmap', { roadmapId: parentRoadmap.id }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
     } catch (err) {
       console.warn('Failed to persist active roadmap in cache:', err);
@@ -184,7 +223,13 @@ export default function DashboardPage() {
     router.push('/workspace');
   };
 
-  if (!isMounted || !token) {
+  // ✅ FIXED: Check both store and localStorage for token
+  const authToken =
+    typeof window !== 'undefined'
+      ? token || localStorage.getItem('token')
+      : token;
+
+  if (!isMounted || !authToken) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
         <RefreshCw className="h-6 w-6 animate-spin text-blue-600 mr-2" />

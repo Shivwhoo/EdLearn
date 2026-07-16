@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, User, Mic } from 'lucide-react';
 import axios from 'axios';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 
 interface PodcastScriptLine {
   speaker: 'Host' | 'Expert';
@@ -14,6 +15,7 @@ interface PodcastPlayerProps {
 }
 
 export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ topicId, script, audioUrl }) => {
+  const { token } = useWorkspaceStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(audioUrl || null);
@@ -56,6 +58,8 @@ export const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ topicId, script, a
       const res = await axios.post('/api/tts/podcast', {
         topicId,
         script
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data?.success && res.data.audioUrl) {
         setActiveAudioUrl(res.data.audioUrl);
