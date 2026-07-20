@@ -8,8 +8,6 @@ import { getReferenceContext } from './lib/scraper';
 import { getPedagogicalModeConfig } from './lib/ai/pedagogicalEngine';
 import db from './lib/db';
 import { connectMongo } from './lib/mongodb';
-import Thread from './lib/models/Thread';
-import { v4 as uuidv4 } from 'uuid';
 import MarketDemand from './lib/models/MarketDemand';
 import { startMarketWorker } from './lib/queues/marketQueue';
 import { hashPassword, verifyPassword, generateToken } from './lib/auth';
@@ -18,6 +16,11 @@ import { redisCache } from './lib/redis';
 import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
 import passport from './auth/google';
+
+import newsRouter from './routes/news';
+import mediaRouter from './routes/media';
+import booksRouter from './routes/books';
+import { startContentCrons } from './services/contentCrons';
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -83,6 +86,11 @@ app.get(
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', provider: aiService.getActiveProviderName() });
 });
+
+// --- Public dynamic-content endpoints (landing page + deep-dive pages) ---
+app.use('/api/news', newsRouter);
+app.use('/api/media', mediaRouter);
+app.use('/api/books', booksRouter);
 
 // --- Authentication Endpoints ---
 
@@ -248,6 +256,13 @@ app.get('/api/auth/me', authenticate, async (req: express.Request, res: express.
         }
         : null;
 
+    // Completed-day IDs + earned badges, so the client restores real progress
+    // from the database (not just localStorage) on every session load.
+    const [completedProgress, userBadges] = await Promise.all([
+      db.progress.findMany({ where: { userId }, distinct: ['dayId'], select: { dayId: true } }),
+      db.badge.findMany({ where: { userId }, orderBy: { earnedAt: 'desc' } }),
+    ]);
+
     res.json({
       success: true,
       user: {
@@ -255,7 +270,9 @@ app.get('/api/auth/me', authenticate, async (req: express.Request, res: express.
         email: user.email,
         fullName: user.profile?.fullName || user.email.split('@')[0],
         profile: resolvedProfile,
-        activeRoadmap
+        activeRoadmap,
+        completedDayIds: completedProgress.map((p) => p.dayId),
+        badges: userBadges,
       }
     });
   } catch (error) {
@@ -442,7 +459,19 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
       )
     ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    const payload = { success: true, roadmaps, topics };
+    // Real completion state (Progress table) + earned badges for the dashboard.
+    const [completedProgress, userBadges] = await Promise.all([
+      db.progress.findMany({ where: { userId }, distinct: ['dayId'], select: { dayId: true } }),
+      db.badge.findMany({ where: { userId }, orderBy: { earnedAt: 'desc' } }),
+    ]);
+
+    const payload = {
+      success: true,
+      roadmaps,
+      topics,
+      completedDayIds: completedProgress.map((p) => p.dayId),
+      badges: userBadges,
+    };
 
     // M5: Cache for 5 minutes
     await redisCache.setCache(cacheKey, JSON.stringify(payload), 300);
@@ -457,7 +486,7 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
 // 2. Generate Content (6 Modes + RAG)
 app.post('/api/generate', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    const { topic, mode, difficulty, url, dayId } = req.body;
+    const { topic, mode, difficulty, url, dayId, forceRefresh } = req.body;
 
     console.log("========== GENERATE ==========");
     console.log("Request Body:", req.body);
@@ -495,9 +524,109 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
 
     console.log("Resolved mode =", modeNumber);
 
+    // ----------------------------------------------------------------------
+    // Mode 7 — Duo Podcast (conversational two-host script).
+    //
+    // The study-notes pipeline below assumes a notes JSON schema and runs a
+    // double-pass review that would mangle a podcast script, so mode 7 gets
+    // its own short pipeline: RAG → podcast prompt (pedagogicalEngine case 7)
+    // → parse → normalise the { speaker, line } script → persist → return.
+    // Without this branch the generic notes prompt runs and no `script` is
+    // ever produced, which is why the Duo Podcast never appeared.
+    // ----------------------------------------------------------------------
+    if (modeNumber === 7) {
+      const podcastCacheKey = `podcast:${String(topic).toLowerCase().trim()}:${String(difficulty).toLowerCase().trim()}`;
+
+      let podcastData: any = null;
+      const cachedPodcast = forceRefresh ? null : await redisCache.getCache(podcastCacheKey);
+      if (cachedPodcast) {
+        try { podcastData = JSON.parse(cachedPodcast); } catch { podcastData = null; }
+      }
+
+      if (!podcastData) {
+        const podcastContext = await getReferenceContext(topic, url);
+        const cfg = getPedagogicalModeConfig(7, topic, difficulty, podcastContext);
+
+        const rawScriptResponse = await aiService.generate(cfg.userPrompt, {
+          systemPrompt: cfg.systemPrompt,
+          jsonMode: true,
+          temperature: 0.6,
+          maxTokens: 4096,
+        });
+
+        try {
+          podcastData = JSON.parse(rawScriptResponse);
+        } catch {
+          const cleaned = rawScriptResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+          podcastData = JSON.parse(cleaned); // a hard failure bubbles to the outer catch → 500
+        }
+      }
+
+      // Normalise the script: force speaker to exactly "Host" | "Expert" and
+      // drop any empty lines so the TTS + transcript stay well-formed.
+      const rawScript = Array.isArray(podcastData?.script) ? podcastData.script : [];
+      const script = rawScript
+        .map((t: any) => ({
+          speaker: String(t?.speaker || '').toLowerCase() === 'expert' ? 'Expert' : 'Host',
+          line: String(t?.line || '').trim(),
+        }))
+        .filter((t: any) => t.line.length > 0);
+
+      if (script.length === 0) {
+        return res.status(502).json({ error: 'The AI did not return a valid podcast script. Please try again.' });
+      }
+      podcastData.script = script;
+
+      // Cache the clean script (without any per-request topicId embedded).
+      await redisCache.setCache(podcastCacheKey, JSON.stringify(podcastData), 86400);
+
+      // Persist as a Topic (one podcast row per day+mode) so it shows up in
+      // version history and, crucially, gives the player a real Topic id to
+      // request TTS against. Re-generating updates the same row and clears the
+      // stale audio URL so fresh audio is synthesised on next play.
+      let dbTopic: any = null;
+      if (dayId) {
+        try {
+          const existing = await db.topic.findFirst({
+            where: { dayId, mode: 7 },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (existing) {
+            dbTopic = await db.topic.update({
+              where: { id: existing.id },
+              data: { notesHtml: JSON.stringify(podcastData), audioUrl: null },
+            });
+          } else {
+            dbTopic = await db.topic.create({
+              data: {
+                dayId,
+                title: topic,
+                mode: 7,
+                notesHtml: JSON.stringify(podcastData),
+                citations: {
+                  create: (podcastData.sources || []).map((s: any) => ({
+                    label: s.label || 'Web Reference',
+                    rawText: `Podcast source: ${s.label}`,
+                    sourceUrl: s.url,
+                  })),
+                },
+              },
+            });
+          }
+        } catch (dbErr) {
+          console.error('Failed to persist podcast topic:', dbErr);
+        }
+      }
+
+      // Surface the real Topic id to the client (embedded only in the response,
+      // never in the cached script) so PodcastPlayer requests TTS correctly.
+      const responseData = { ...podcastData, ...(dbTopic?.id ? { topicId: dbTopic.id } : {}) };
+      return res.json({ success: true, mode: 7, data: responseData, dbTopic });
+    }
+
     // M2: Cache key must include mode — Socratic vs. Accelerator notes are different content
     const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
-    const cachedNotes = await redisCache.getCache(cacheKey);
+    const cachedNotes = forceRefresh ? null : await redisCache.getCache(cacheKey);
 
     if (cachedNotes) {
       console.log(`Cache HIT for key: ${cacheKey}`);
@@ -530,7 +659,12 @@ app.post('/api/generate', authenticate, async (req: express.Request, res: expres
           }
         }
 
-        return res.json({ success: true, data: parsedContent });
+        return res.json({
+          success: true,
+          mode: modeNumber,
+          data: parsedContent,
+          fromCache: true,
+        });
       } catch (parseErr) {
         console.warn('Failed to parse cached JSON notes, generating fresh notes...');
       }
@@ -739,169 +873,97 @@ app.post('/api/roadmap', authenticate, async (req: express.Request, res: express
   }
 });
 
-// 4. Doubt Forum API Routes (Mongoose)
-// Helper to dynamically calculate user badges and ranks in the community Doubt Forum
-async function calculateUserRankAndBadges(userId: string): Promise<{ rank: string; badges: string[] }> {
+// 3.5. Day Completion + Course Badge
+// Persists a single day's completion to PostgreSQL (the Progress table — which
+// existed in the schema but nothing wrote to before). Completion was previously
+// tracked only in the browser's localStorage, so it was lost across devices and
+// logins. This route makes the database the source of truth. When the final day
+// of a roadmap is completed, it awards a one-time "course completion" Badge.
+//
+// Idempotent by design: completing an already-completed day is a safe no-op, and
+// a roadmap's badge is only ever created once (guarded by a per-roadmap badgeType).
+app.post('/api/progress/complete', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
-    const userThreads = await Thread.find({ 'author.userId': userId });
-    let totalUpvotes = 0;
-    userThreads.forEach((t) => {
-      totalUpvotes += t.upvotes?.length || 0;
-    });
+    const userId = (req as AuthenticatedRequest).user!.id;
+    const { dayId } = req.body;
 
-    const threadsWithComments = await Thread.find({ 'comments.author.userId': userId });
-    threadsWithComments.forEach((t) => {
-      t.comments.forEach((c) => {
-        if (c.author.userId === userId) {
-          totalUpvotes += c.upvotes?.length || 0;
-        }
-      });
-    });
-
-    let rank = 'Learner';
-    const badges: string[] = [];
-
-    if (totalUpvotes >= 20) {
-      rank = 'Expert Mentor';
-      badges.push('Top Responder', 'Subject Authority');
-    } else if (totalUpvotes >= 10) {
-      rank = 'Helper';
-      badges.push('Active Contributor');
-    } else if (totalUpvotes >= 5) {
-      rank = 'Scholar';
-      badges.push('Curious Mind');
+    if (!dayId) {
+      return res.status(400).json({ error: 'Missing required parameter: dayId' });
     }
 
-    return { rank, badges };
-  } catch (err) {
-    console.error('Error calculating badges:', err);
-    return { rank: 'Learner', badges: [] };
-  }
-}
-
-app.get('/api/doubt', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
-  try {
-    const topicId = req.query.topicId as string;
-    if (!topicId) {
-      return res.status(400).json({ error: 'Missing topicId query parameter' });
-    }
-
-    const threads = await Thread.find({ topicId }).sort({ createdAt: -1 });
-
-    // H3: Collect all unique user IDs upfront to avoid N+1 badge queries
-    const uniqueUserIds = [...new Set([
-      ...threads.map((t) => t.author.userId),
-      ...threads.flatMap((t) => t.comments.map((c: any) => c.author.userId)),
-    ])];
-
-    // Fetch badge data for all unique users in parallel (2 queries per user instead of 2 per thread/comment)
-    const badgeMap = new Map<string, { rank: string; badges: string[] }>();
-    await Promise.all(uniqueUserIds.map(async (uid) => {
-      badgeMap.set(uid, await calculateUserRankAndBadges(uid));
-    }));
-
-    const enrichedThreads = threads.map((t) => {
-      const authorMeta = badgeMap.get(t.author.userId) || { rank: 'Learner', badges: [] };
-      const enrichedComments = t.comments.map((c: any) => {
-        const commentMeta = badgeMap.get(c.author.userId) || { rank: 'Learner', badges: [] };
-        return {
-          commentId: c.commentId,
-          content: c.content,
-          upvotes: c.upvotes,
-          replies: c.replies,
-          createdAt: c.createdAt,
-          author: { userId: c.author.userId, name: c.author.name, rank: commentMeta.rank, badges: commentMeta.badges },
-        };
-      });
-      return {
-        _id: t._id,
-        topicId: t.topicId,
-        title: t.title,
-        content: t.content,
-        upvotes: t.upvotes,
-        resolved: t.resolved,
-        bestAnswerId: t.bestAnswerId,
-        createdAt: t.createdAt,
-        author: { userId: t.author.userId, name: t.author.name, avatar: t.author.avatar, rank: authorMeta.rank, badges: authorMeta.badges },
-        comments: enrichedComments,
-      };
+    // Ownership check: a day belongs to a roadmap, which belongs to a user.
+    // Never let a user mark someone else's day complete just by knowing its ID.
+    const day = await db.day.findUnique({
+      where: { id: dayId },
+      include: { roadmap: { include: { days: { select: { id: true } } } } },
     });
 
-    res.json({ success: true, threads: enrichedThreads });
+    if (!day || day.roadmap.userId !== userId) {
+      return res.status(404).json({ error: 'Day not found.' });
+    }
+
+    const roadmap = day.roadmap;
+
+    // Record completion once per (user, day) — no duplicate Progress rows.
+    const existing = await db.progress.findFirst({ where: { userId, dayId } });
+    if (!existing) {
+      await db.progress.create({
+        data: { userId, roadmapId: roadmap.id, dayId },
+      });
+    }
+
+    // Mirror the flag onto this day's topic versions for convenience.
+    await db.topic.updateMany({ where: { dayId }, data: { completed: true } });
+
+    // How many distinct days of THIS roadmap has the user now completed?
+    const completedForRoadmap = await db.progress.findMany({
+      where: { userId, roadmapId: roadmap.id },
+      distinct: ['dayId'],
+      select: { dayId: true },
+    });
+    const completedDayIdsForRoadmap = completedForRoadmap.map((p) => p.dayId);
+    const totalDays = roadmap.days.length;
+    const allComplete = totalDays > 0 && completedDayIdsForRoadmap.length >= totalDays;
+
+    // Award a one-time course-completion badge. badgeType encodes the roadmap id
+    // so the same course can never mint two badges, without needing a schema change.
+    const badgeType = `course_completion:${roadmap.id}`;
+    let newlyEarnedBadge = null;
+    if (allComplete) {
+      const alreadyAwarded = await db.badge.findFirst({ where: { userId, badgeType } });
+      if (!alreadyAwarded) {
+        newlyEarnedBadge = await db.badge.create({
+          data: {
+            userId,
+            title: `Course Champion: ${roadmap.title}`,
+            description: `Completed all ${totalDays} days of "${roadmap.title}".`,
+            badgeType,
+          },
+        });
+      }
+    }
+
+    // Progress affects the dashboard summary — drop its cache so it recomputes.
+    await redisCache.deleteCache(`dashboard:${userId}`);
+
+    // Return the full, authoritative set of completed day IDs across ALL the
+    // user's roadmaps so the client can reconcile its local state in one shot.
+    const allCompleted = await db.progress.findMany({
+      where: { userId },
+      distinct: ['dayId'],
+      select: { dayId: true },
+    });
+
+    return res.json({
+      success: true,
+      completedDayIds: allCompleted.map((p) => p.dayId),
+      roadmapCompletedDayIds: completedDayIdsForRoadmap,
+      allComplete,
+      newlyEarnedBadge,
+    });
   } catch (error) {
-    console.error('Doubt GET error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal Server Error' });
-  }
-});
-
-app.post('/api/doubt', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
-  try {
-    const { action, topicId, title, content, authorName, userId, threadId } = req.body;
-
-    if (action === 'createThread') {
-      if (!topicId || !title || !content || !authorName || !userId) {
-        return res.status(400).json({ error: 'Missing thread parameters' });
-      }
-
-      const newThread = await Thread.create({
-        topicId,
-        title,
-        content,
-        author: { userId, name: authorName },
-        upvotes: [],
-        resolved: false,
-        comments: [],
-      });
-
-      return res.json({ success: true, thread: newThread });
-    }
-
-    if (action === 'createComment') {
-      if (!threadId || !content || !authorName || !userId) {
-        return res.status(400).json({ error: 'Missing comment parameters' });
-      }
-
-      const newComment = {
-        commentId: uuidv4(),
-        author: { userId, name: authorName },
-        content,
-        upvotes: [],
-        replies: [],
-        createdAt: new Date(),
-      };
-
-      const updatedThread = await Thread.findByIdAndUpdate(
-        threadId,
-        { $push: { comments: newComment } },
-        { new: true }
-      );
-
-      return res.json({ success: true, thread: updatedThread });
-    }
-
-    if (action === 'upvoteThread') {
-      if (!threadId || !userId) {
-        return res.status(400).json({ error: 'Missing upvote parameters' });
-      }
-
-      const thread = await Thread.findById(threadId);
-      if (!thread) {
-        return res.status(404).json({ error: 'Thread not found' });
-      }
-
-      const hasUpvoted = thread.upvotes.includes(userId);
-      const update = hasUpvoted
-        ? { $pull: { upvotes: userId } }
-        : { $addToSet: { upvotes: userId } };
-
-      const updated = await Thread.findByIdAndUpdate(threadId, update, { new: true });
-      return res.json({ success: true, thread: updated });
-    }
-
-    res.status(400).json({ error: 'Invalid action specified' });
-  } catch (error) {
-    console.error('Doubt POST error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal Server Error' });
+    console.error('Day completion error:', error);
+    return res.status(500).json({ error: 'Failed to record day completion.' });
   }
 });
 
@@ -1104,28 +1166,36 @@ app.post('/api/tts/podcast', authenticate, async (req: express.Request, res: exp
     const userId = (req as AuthenticatedRequest).user?.id;
     const { topicId, script } = req.body;
 
-    if (!topicId || !Array.isArray(script)) {
-      return res.status(400).json({ error: 'Missing required parameters: topicId or script array' });
+    // The script itself is what we synthesise, and it is provided by the
+    // (authenticated) client — so audio generation must NOT depend on a valid
+    // Topic id. Previously this route 404'd whenever `topicId` wasn't a real
+    // Topic (e.g. a Day id was passed), which broke playback entirely.
+    if (!Array.isArray(script) || script.length === 0) {
+      return res.status(400).json({ error: 'Missing or empty podcast script.' });
     }
 
-    const topic = await db.topic.findUnique({
-      where: { id: topicId },
-      include: { day: { include: { roadmap: true } } },
-    });
+    // Synthesise (or reuse a cached, content-hashed) MP3 from the script.
+    // generatePodcastAudio() is self-caching by script hash and DB-independent.
+    const audioUrl = await generatePodcastAudio(script);
 
-    if (!topic || topic.day.roadmap.userId !== userId) {
-      return res.status(404).json({ error: 'Topic not found.' });
+    // Best-effort only: if topicId refers to a real Topic the user owns, cache
+    // the audio URL on it for history. A non-Topic id is simply ignored — the
+    // audio is already generated and returned, so playback works regardless.
+    if (topicId) {
+      try {
+        const topic = await db.topic.findUnique({
+          where: { id: topicId },
+          include: { day: { include: { roadmap: true } } },
+        });
+        if (topic && topic.day.roadmap.userId === userId) {
+          await db.topic.update({ where: { id: topic.id }, data: { audioUrl } });
+        }
+      } catch (dbErr) {
+        console.error('Podcast audioUrl persistence skipped (non-fatal):', dbErr);
+      }
     }
 
-    if (topic.audioUrl && topic.audioUrl.includes('_podcast')) {
-      return res.json({ success: true, audioUrl: topic.audioUrl, cached: true });
-    }
-
-    const audioUrl = await generatePodcastAudio(script, topic.id);
-
-    await db.topic.update({ where: { id: topic.id }, data: { audioUrl } });
-
-    res.json({ success: true, audioUrl, cached: false });
+    res.json({ success: true, audioUrl });
   } catch (error) {
     console.error('TTS Podcast Error:', error);
     res.status(500).json({ error: 'Internal Server Error generating podcast audio.' });
@@ -1216,7 +1286,7 @@ async function connectMongoWithRetry(retries = 3, delayMs = 3000): Promise<void>
         await new Promise((res) => setTimeout(res, delayMs));
       } else {
         // Non-fatal: server starts without MongoDB; Mongoose routes return 503
-        console.error('MongoDB unavailable after all retries — server starting without it. Doubt Forum routes will fail until MongoDB is reachable.', err?.message);
+        console.error('MongoDB unavailable after all retries — server starting without it. Market-demand trends will be empty until MongoDB is reachable.', err?.message);
       }
     }
   }
@@ -1232,6 +1302,10 @@ async function startServer() {
     startMarketWorker().catch((err) => {
       console.warn('[BullMQ] Worker startup error (non-fatal):', err?.message || err);
     });
+    // Fire-and-forget: content crons (news/media/books) are optional too
+    startContentCrons().catch((err) => {
+      console.warn('[ContentCrons] Startup error (non-fatal):', err?.message || err);
+    });
   });
 }
 
@@ -1239,4 +1313,4 @@ startServer().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
-
+// (content sections: news/media/books routers + crons wired above)

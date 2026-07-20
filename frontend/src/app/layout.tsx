@@ -1,20 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import "@/lib/axiosConfig"; // Registers the global axios error-message interceptor — see that file's header comment.
 import PublicNavbar from "@/components/Layout/PublicNavbar";
 
-// Switched from Geist to Inter to match the Paya-style typography pass —
-// Inter is the primary font in the redesign spec (Plus Jakarta Sans was the
-// listed alternative). `--font-inter` backs the `font-family` in
-// globals.css; Geist_Mono was dropped since nothing in the app referenced
-// its CSS variable directly (code blocks use Tailwind's built-in font-mono
-// utility instead, which is unaffected by this swap).
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
+// NOTE: Previously this loaded "Inter" via `next/font/google`, which fetches
+// the font from Google's servers at COMPILE time. On any machine that can't
+// reach fonts.googleapis.com (offline / firewall / slow proxy), that fetch
+// hangs and the page never finishes compiling — the browser just spins on
+// "Loading...". To make the app run reliably everywhere, the font is now a
+// pure system-font stack defined in globals.css (`--font-inter`), so no
+// network request is needed to render. Swap back to next/font only if you
+// want the exact Inter typeface AND have reliable network at build time.
 
 export const metadata: Metadata = {
   title: "EdLearn — AI-Structured Study Paths",
@@ -30,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
+      className="h-full antialiased"
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>

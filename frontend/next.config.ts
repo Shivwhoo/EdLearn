@@ -8,6 +8,9 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  turbopack: {
+    root: __dirname,
+  },
   async rewrites() {
     return [
       {

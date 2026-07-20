@@ -1,0 +1,149 @@
+/**
+ * Seed script for dynamic content (news / media / books).
+ * Populates the three content tables with realistic sample data so the
+ * landing page and deep-dive pages work before real API keys are added.
+ *
+ * Run with:  npx tsx prisma/seedContent.ts
+ */
+import '../src/loadEnv';
+import db from '../src/lib/db';
+
+const now = Date.now();
+const daysAgo = (d: number) => new Date(now - d * 24 * 60 * 60 * 1000);
+const hoursAgo = (h: number) => new Date(now - h * 60 * 60 * 1000);
+
+// ---------------------------------------------------------------- news
+const NEWS: Array<{
+  title: string; description: string; source: string; category: string;
+  publishedAt: Date;
+}> = [
+  { title: 'Open-weight AI models close the gap with frontier labs in new benchmark sweep', description: 'A wave of open-weight releases posted record scores on reasoning and coding benchmarks this week, narrowing the gap with proprietary frontier models and reshaping enterprise adoption plans.', source: 'TechWire', category: 'tech', publishedAt: hoursAgo(3) },
+  { title: 'Quantum error-correction milestone brings fault-tolerant computing closer', description: 'Researchers demonstrated a logical qubit that outperforms its physical components by an order of magnitude, a long-sought threshold on the road to practical quantum machines.', source: 'Science Daily', category: 'science', publishedAt: hoursAgo(6) },
+  { title: 'Global chip capex hits record as fabs race to meet AI demand', description: 'Semiconductor manufacturers announced another round of multi-billion-dollar fab expansions, with advanced packaging capacity emerging as the industry’s newest bottleneck.', source: 'MarketPulse', category: 'finance', publishedAt: hoursAgo(9) },
+  { title: 'CRISPR-based therapy shows durable results in sickle cell follow-up study', description: 'Three-year follow-up data show sustained remission for the vast majority of patients treated with the gene-editing therapy, strengthening the case for wider access programs.', source: 'MedReport', category: 'medical', publishedAt: hoursAgo(12) },
+  { title: 'Universities pilot AI teaching assistants across intro STEM courses', description: 'A consortium of universities reported higher completion rates in courses that paired human instructors with AI tutors, though educators caution the tools still need close supervision.', source: 'EduTimes', category: 'education', publishedAt: hoursAgo(18) },
+  { title: 'Central banks weigh coordinated response as digital payments reshape settlement', description: 'Policymakers from major economies discussed interoperability standards for instant-settlement systems, signalling a faster timeline for cross-border payment reform.', source: 'FinanceDesk', category: 'finance', publishedAt: daysAgo(1) },
+  { title: 'Solar-plus-storage overtakes gas peakers on cost in most major markets', description: 'New levelized-cost analysis shows battery-backed solar undercutting natural gas peaker plants across most regions, accelerating grid-scale storage procurement.', source: 'World Report', category: 'world', publishedAt: daysAgo(1) },
+  { title: 'Alzheimer’s blood test earns broad clinical rollout after validation study', description: 'A plasma biomarker test that detects amyloid pathology with high accuracy is moving into routine clinical use, promising earlier diagnosis at a fraction of the cost of PET scans.', source: 'MedReport', category: 'medical', publishedAt: daysAgo(2) },
+  { title: 'Fusion startup sustains net-positive plasma for record duration', description: 'The privately funded reactor held an energy-positive plasma state for several minutes, a result independent physicists called a meaningful step toward commercial fusion.', source: 'Science Daily', category: 'science', publishedAt: daysAgo(2) },
+  { title: 'Skills-based hiring gains ground as degree requirements fall away', description: 'A growing share of large employers dropped four-year degree requirements for technical roles this year, leaning on assessments and portfolios instead.', source: 'EduTimes', category: 'education', publishedAt: daysAgo(3) },
+  { title: 'Edge AI chips push on-device inference into everyday hardware', description: 'A new generation of low-power neural accelerators is bringing real-time language and vision models to phones, wearables, and industrial sensors without cloud round-trips.', source: 'TechWire', category: 'tech', publishedAt: daysAgo(3) },
+  { title: 'Global trade routes shift as ports invest in automation and green fuel', description: 'Major shipping hubs unveiled automation and methanol-bunkering upgrades, redrawing the competitive map of global logistics.', source: 'World Report', category: 'world', publishedAt: daysAgo(4) },
+  { title: 'mRNA cancer vaccine trial expands after strong interim readout', description: 'A personalized mRNA vaccine combined with immunotherapy cut recurrence risk significantly in melanoma patients, triggering an expanded phase-3 enrollment.', source: 'MedReport', category: 'medical', publishedAt: daysAgo(5) },
+  { title: 'Venture funding rebounds with AI infrastructure leading the way', description: 'Quarterly venture data show a second consecutive rise in deal value, concentrated in data-center tooling, inference optimization, and applied AI companies.', source: 'MarketPulse', category: 'finance', publishedAt: daysAgo(6) },
+  { title: 'James Webb data reveal unexpectedly mature galaxies in early universe', description: 'New deep-field observations add to evidence that massive, well-structured galaxies formed far earlier than standard models predicted, energizing theoretical debate.', source: 'Science Daily', category: 'science', publishedAt: daysAgo(7) },
+  { title: 'Microcredential boom prompts push for quality standards', description: 'As short-form credentials multiply, accreditation bodies and employers are converging on shared frameworks to signal which certificates carry real labor-market value.', source: 'EduTimes', category: 'education', publishedAt: daysAgo(9) },
+  { title: 'Passkeys reach mainstream adoption as major platforms retire passwords', description: 'Passwordless sign-in crossed a tipping point this quarter, with the largest consumer platforms defaulting new accounts to passkeys.', source: 'TechWire', category: 'tech', publishedAt: daysAgo(12) },
+  { title: 'Emerging markets attract record inflows on supply-chain diversification', description: 'Manufacturing investment continued its migration across Southeast Asia and Latin America as companies build redundancy into supply chains.', source: 'FinanceDesk', category: 'finance', publishedAt: daysAgo(15) },
+  { title: 'WHO reports major progress in global malaria vaccination campaign', description: 'Expanded rollout of next-generation malaria vaccines reached tens of millions of children this year, with early data showing sharp drops in severe cases.', source: 'World Report', category: 'world', publishedAt: daysAgo(20) },
+  { title: 'Room-temperature sodium-ion batteries enter mass production', description: 'The first large-scale sodium-ion battery plants began shipping cells for grid storage, offering a cheaper, lithium-free alternative for stationary applications.', source: 'Science Daily', category: 'science', publishedAt: daysAgo(25) },
+  { title: 'AI copilots become standard issue across enterprise software stacks', description: 'Survey data show a large majority of enterprises now deploy AI assistants in at least three business functions, with measurable productivity gains in support and engineering.', source: 'TechWire', category: 'tech', publishedAt: daysAgo(30) },
+  { title: 'Telehealth expansion narrows rural specialist gap, study finds', description: 'A multi-state study found tele-specialty programs cut wait times for cardiology and dermatology consults in rural counties by more than half.', source: 'MedReport', category: 'medical', publishedAt: daysAgo(40) },
+  { title: 'Sovereign wealth funds pivot toward energy transition assets', description: 'The world’s largest state investors disclosed growing allocations to renewables, grid infrastructure, and critical minerals.', source: 'MarketPulse', category: 'finance', publishedAt: daysAgo(60) },
+  { title: 'Global literacy initiative brings adaptive learning apps to 40 countries', description: 'A public-private coalition is distributing offline-capable adaptive reading apps, with pilot regions reporting accelerated early-grade literacy gains.', source: 'EduTimes', category: 'education', publishedAt: daysAgo(90) },
+];
+
+// --------------------------------------------------------------- media
+const MEDIA: Array<{
+  title: string; description: string; contentUrl: string; contentType: string;
+  platform: string; channelName: string; duration: number; category: string;
+  publishedAt: Date; thumbnailUrl: string;
+}> = [
+  { title: 'How AI could empower any business', description: 'Andrew Ng on democratizing AI so small teams and businesses can build custom systems without armies of engineers.', contentUrl: 'https://www.youtube.com/watch?v=reUZRyXxUs4', contentType: 'video', platform: 'youtube', channelName: 'TED', duration: 671, category: 'tech', publishedAt: daysAgo(2), thumbnailUrl: 'https://i.ytimg.com/vi/reUZRyXxUs4/hqdefault.jpg' },
+  { title: 'The next global superpower isn’t who you think', description: 'Ian Bremmer maps the three power structures shaping the world — and why the digital order may matter most.', contentUrl: 'https://www.youtube.com/watch?v=uiUPD-z9DTg', contentType: 'video', platform: 'youtube', channelName: 'TED', duration: 1042, category: 'business', publishedAt: daysAgo(4), thumbnailUrl: 'https://i.ytimg.com/vi/uiUPD-z9DTg/hqdefault.jpg' },
+  { title: 'Master Your Sleep & Be More Alert When Awake', description: 'Dr. Andrew Huberman breaks down the science of sleep–wake cycles and practical tools for better rest and daytime focus.', contentUrl: 'https://www.youtube.com/watch?v=nm1TxQj9IsQ', contentType: 'video', platform: 'youtube', channelName: 'Huberman Lab', duration: 5820, category: 'health', publishedAt: daysAgo(6), thumbnailUrl: 'https://i.ytimg.com/vi/nm1TxQj9IsQ/hqdefault.jpg' },
+  { title: 'The biggest myths about the universe', description: 'Big Think assembles physicists to dismantle popular misconceptions about black holes, the Big Bang, and infinity.', contentUrl: 'https://www.youtube.com/watch?v=0zXlBBFwbnw', contentType: 'video', platform: 'youtube', channelName: 'Big Think', duration: 1560, category: 'science', publishedAt: daysAgo(8), thumbnailUrl: 'https://i.ytimg.com/vi/0zXlBBFwbnw/hqdefault.jpg' },
+  { title: 'Airbnb: Joe Gebbia', description: 'Joe Gebbia recounts how renting out air mattresses during a design conference grew into a global hospitality company.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-15s.mp3?ep=hibt-airbnb', contentType: 'audio', platform: 'podcastindex', channelName: 'How I Built This', duration: 3120, category: 'business', publishedAt: daysAgo(3), thumbnailUrl: 'https://picsum.photos/seed/hibt-airbnb/640/360' },
+  { title: 'Supernova in the East I', description: 'Dan Carlin begins his epic series on the Asia-Pacific War, tracing imperial Japan’s rise and the road to global conflict.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-12s.mp3?ep=hh-supernova', contentType: 'audio', platform: 'podcastindex', channelName: 'Hardcore History', duration: 16200, category: 'history', publishedAt: daysAgo(10), thumbnailUrl: 'https://picsum.photos/seed/hh-supernova/640/360' },
+  { title: 'The Science of Laughter', description: 'Science Friday explores why humans laugh, what it does to our brains and bodies, and why it’s contagious.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-9s.mp3?ep=scifri-laughter', contentType: 'audio', platform: 'podcastindex', channelName: 'Science Friday', duration: 1500, category: 'science', publishedAt: daysAgo(5), thumbnailUrl: 'https://picsum.photos/seed/scifri-laughter/640/360' },
+  { title: 'The Power Broker: Robert Caro on cities', description: '99% Invisible examines how invisible decisions about infrastructure shape who cities work for — and who they don’t.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-6s.mp3?ep=99pi-caro', contentType: 'audio', platform: 'podcastindex', channelName: '99% Invisible', duration: 2280, category: 'culture', publishedAt: daysAgo(7), thumbnailUrl: 'https://picsum.photos/seed/99pi-caro/640/360' },
+  { title: 'Grit: the power of passion and perseverance', description: 'Angela Duckworth’s landmark talk on why grit — not talent — best predicts long-term achievement.', contentUrl: 'https://www.youtube.com/watch?v=H14bBuluwB8', contentType: 'video', platform: 'youtube', channelName: 'TED', duration: 380, category: 'culture', publishedAt: daysAgo(12), thumbnailUrl: 'https://i.ytimg.com/vi/H14bBuluwB8/hqdefault.jpg' },
+  { title: 'How great leaders inspire action', description: 'Simon Sinek’s “Start With Why” — one of the most-watched talks ever — on the biology of inspirational leadership.', contentUrl: 'https://www.youtube.com/watch?v=qp0HIF3SfI4', contentType: 'video', platform: 'youtube', channelName: 'TED', duration: 1086, category: 'business', publishedAt: daysAgo(14), thumbnailUrl: 'https://i.ytimg.com/vi/qp0HIF3SfI4/hqdefault.jpg' },
+  { title: 'Creative Mornings: The Beauty of Constraints', description: 'A designer explains how tight constraints — budgets, deadlines, materials — unlock rather than limit creative work.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-15s.mp3?ep=cm-constraints', contentType: 'audio', platform: 'podcastindex', channelName: 'Creative Mornings', duration: 1860, category: 'culture', publishedAt: daysAgo(9), thumbnailUrl: 'https://picsum.photos/seed/cm-constraints/640/360' },
+  { title: 'Foundations of Physical and Mental Performance', description: 'Huberman Lab on the core pillars — sleep, light, movement, nutrition — that drive health and performance.', contentUrl: 'https://www.youtube.com/watch?v=q1Ss8sTbFBY', contentType: 'video', platform: 'youtube', channelName: 'Huberman Lab', duration: 7260, category: 'health', publishedAt: daysAgo(15), thumbnailUrl: 'https://i.ytimg.com/vi/q1Ss8sTbFBY/hqdefault.jpg' },
+  { title: 'The history you didn’t learn about the Silk Road', description: 'Big Think historians trace how the Silk Road moved not just goods but ideas, religions, and technologies across continents.', contentUrl: 'https://www.youtube.com/watch?v=vn3e37VWc0k', contentType: 'video', platform: 'youtube', channelName: 'Big Think', duration: 980, category: 'history', publishedAt: daysAgo(18), thumbnailUrl: 'https://i.ytimg.com/vi/vn3e37VWc0k/hqdefault.jpg' },
+  { title: 'Patagonia: Yvon Chouinard', description: 'How a reluctant businessman built one of the world’s most admired companies by putting purpose ahead of growth.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-12s.mp3?ep=hibt-patagonia', contentType: 'audio', platform: 'podcastindex', channelName: 'How I Built This', duration: 3480, category: 'business', publishedAt: daysAgo(20), thumbnailUrl: 'https://picsum.photos/seed/hibt-patagonia/640/360' },
+  { title: 'Inside the gut microbiome revolution', description: 'Science Friday dives into how trillions of gut microbes influence immunity, mood, and chronic disease.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-9s.mp3?ep=scifri-microbiome', contentType: 'audio', platform: 'podcastindex', channelName: 'Science Friday', duration: 1680, category: 'health', publishedAt: daysAgo(22), thumbnailUrl: 'https://picsum.photos/seed/scifri-microbiome/640/360' },
+  { title: 'PechaKucha: 20 slides on designing for joy', description: 'A rapid-fire PechaKucha talk on injecting delight into everyday products, told in exactly 20 slides of 20 seconds.', contentUrl: 'https://samplelib.com/lib/preview/mp3/sample-6s.mp3?ep=pk-joy', contentType: 'audio', platform: 'podcastindex', channelName: 'PechaKucha', duration: 400, category: 'culture', publishedAt: daysAgo(11), thumbnailUrl: 'https://picsum.photos/seed/pk-joy/640/360' },
+  { title: 'Why AI is humanity’s final invention (or isn’t)', description: 'Big Think hosts a measured debate on artificial general intelligence timelines, risks, and what remains uniquely human.', contentUrl: 'https://www.youtube.com/watch?v=fa8k8IQ1_X0', contentType: 'video', platform: 'youtube', channelName: 'Big Think', duration: 1740, category: 'tech', publishedAt: daysAgo(25), thumbnailUrl: 'https://i.ytimg.com/vi/fa8k8IQ1_X0/hqdefault.jpg' },
+  { title: 'The playbook of a 100x founder', description: 'A deep interview on capital efficiency, founder psychology, and compounding advantages in early-stage startups.', contentUrl: 'https://www.youtube.com/watch?v=ZoqgAy3h4OM', contentType: 'video', platform: 'youtube', channelName: '100x Entrepreneur', duration: 3900, category: 'business', publishedAt: daysAgo(28), thumbnailUrl: 'https://i.ytimg.com/vi/ZoqgAy3h4OM/hqdefault.jpg' },
+];
+
+// --------------------------------------------------------------- books
+const BOOKS: Array<{
+  title: string; author: string; description: string; takeaway: string;
+  genre: string; rating: number; publishedAt: Date; buyLink: string;
+}> = [
+  { title: 'The Lean Startup', author: 'Eric Ries', description: 'A methodology for building companies under extreme uncertainty, using validated learning, rapid experimentation, and the build-measure-learn loop to find product-market fit before running out of money.', takeaway: 'Treat every startup idea as a hypothesis to test, not a plan to execute. Ship a minimum viable product fast, measure real customer behavior, and pivot or persevere based on evidence.', genre: 'business', rating: 4.1, publishedAt: new Date('2011-09-13'), buyLink: 'https://www.amazon.com/dp/0307887898' },
+  { title: 'Atomic Habits', author: 'James Clear', description: 'A practical framework for building good habits and breaking bad ones, arguing that remarkable results come from tiny, compounding improvements rather than radical change.', takeaway: 'You do not rise to the level of your goals; you fall to the level of your systems. Make good habits obvious, attractive, easy, and satisfying — and improvements of 1% compound dramatically.', genre: 'self-improvement', rating: 4.4, publishedAt: new Date('2018-10-16'), buyLink: 'https://www.amazon.com/dp/0735211299' },
+  { title: 'Sapiens: A Brief History of Humankind', author: 'Yuval Noah Harari', description: 'A sweeping narrative of how Homo sapiens came to dominate the planet — through cognitive, agricultural, and scientific revolutions — and the shared myths that hold societies together.', takeaway: 'Humanity’s superpower is collective fiction: money, nations, and corporations exist because we all agree they do. Understanding these invented orders explains both our triumphs and our anxieties.', genre: 'history', rating: 4.4, publishedAt: new Date('2015-02-10'), buyLink: 'https://www.amazon.com/dp/0062316095' },
+  { title: 'Deep Work', author: 'Cal Newport', description: 'A case for cultivating intense, distraction-free concentration as the most valuable skill in a knowledge economy, with concrete strategies for reclaiming attention.', takeaway: 'The ability to focus without distraction is becoming rarer exactly as it becomes more valuable. Schedule deep work like a meeting, embrace boredom, and quit tools that don’t pass a cost-benefit test.', genre: 'self-improvement', rating: 4.2, publishedAt: new Date('2016-01-05'), buyLink: 'https://www.amazon.com/dp/1455586692' },
+  { title: 'The Psychology of Money', author: 'Morgan Housel', description: 'Nineteen short stories exploring how emotions, ego, and personal history shape financial decisions more than spreadsheets ever will.', takeaway: 'Doing well with money is a soft skill: staying wealthy requires humility and fear, while getting wealthy requires optimism and risk. Time and compounding beat brilliance.', genre: 'business', rating: 4.3, publishedAt: new Date('2020-09-08'), buyLink: 'https://www.amazon.com/dp/0857197681' },
+  { title: 'Breath: The New Science of a Lost Art', author: 'James Nestor', description: 'An investigation into how modern humans lost the ability to breathe properly and how techniques old and new can restore health, athletic performance, and calm.', takeaway: 'Breathe through your nose, exhale longer than you inhale, and slow everything down. Small changes in breathing mechanics measurably change blood chemistry, sleep, and stress.', genre: 'health', rating: 4.2, publishedAt: new Date('2020-05-26'), buyLink: 'https://www.amazon.com/dp/0735213615' },
+  { title: 'A Brief History of Time', author: 'Stephen Hawking', description: 'Hawking’s classic tour of cosmology — from the Big Bang to black holes — written for readers with no physics background.', takeaway: 'The universe is governed by knowable laws that unite the very large and the very small. Black holes leak radiation, time had a beginning, and a complete theory of everything may be within reach.', genre: 'science', rating: 4.2, publishedAt: new Date('1988-04-01'), buyLink: 'https://www.amazon.com/dp/0553380168' },
+  { title: 'Zero to One', author: 'Peter Thiel', description: 'Contrarian lessons on startups and monopoly, arguing that real innovation means creating something new (0→1) rather than copying what works (1→n).', takeaway: 'Competition is for losers — build a product so differentiated it creates its own category. The best startups answer: what valuable company is nobody building?', genre: 'business', rating: 4.2, publishedAt: new Date('2014-09-16'), buyLink: 'https://www.amazon.com/dp/0804139296' },
+  { title: 'The Code Breaker', author: 'Walter Isaacson', description: 'The story of Jennifer Doudna, CRISPR, and the gene-editing revolution that will define the coming century of biology.', takeaway: 'CRISPR turned DNA into an editable document, forcing science and society to decide together what should be rewritten. Curiosity-driven research keeps paying civilization’s biggest dividends.', genre: 'science', rating: 4.3, publishedAt: new Date('2021-03-09'), buyLink: 'https://www.amazon.com/dp/1982115858' },
+  { title: 'The Innovators', author: 'Walter Isaacson', description: 'A history of the digital revolution told through the collaborations — not lone geniuses — that produced the computer, the internet, and the modern tech industry.', takeaway: 'Innovation is a team sport across generations: Ada Lovelace’s vision needed a century of collaborators. Pairing humanists with technologists is where breakthroughs happen.', genre: 'tech', rating: 4.1, publishedAt: new Date('2014-10-07'), buyLink: 'https://www.amazon.com/dp/147670869X' },
+  { title: 'Why We Sleep', author: 'Matthew Walker', description: 'A neuroscientist’s account of sleep’s role in memory, immunity, emotional health, and longevity — and the costs of the modern sleep-loss epidemic.', takeaway: 'Sleep is the single most effective thing you can do for brain and body health. Keep regular hours, cool your room, and treat eight hours as non-negotiable infrastructure, not a luxury.', genre: 'health', rating: 4.3, publishedAt: new Date('2017-10-03'), buyLink: 'https://www.amazon.com/dp/1501144324' },
+  { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman', description: 'The Nobel laureate’s summa on the two systems of thought — fast intuition and slow reasoning — and the biases that arise when we use the wrong one.', takeaway: 'Your intuitive System 1 is confident but gullible; your deliberate System 2 is lazy. Knowing when snap judgment fails — statistics, forecasts, hiring — is the beginning of better decisions.', genre: 'science', rating: 4.1, publishedAt: new Date('2011-10-25'), buyLink: 'https://www.amazon.com/dp/0374533555' },
+  { title: 'The Almanack of Naval Ravikant', author: 'Eric Jorgenson', description: 'A curated collection of Naval Ravikant’s thinking on building wealth without luck and finding peace without effort.', takeaway: 'Seek wealth, not status: own equity, productize yourself, and play long-term games with long-term people. Happiness is a skill you can train, mostly by wanting less.', genre: 'self-improvement', rating: 4.5, publishedAt: new Date('2020-09-15'), buyLink: 'https://www.amazon.com/dp/1544514212' },
+  { title: 'Chip War', author: 'Chris Miller', description: 'The decades-long battle for semiconductor supremacy, and why the tiny chip has become the world’s most critical — and contested — technology.', takeaway: 'Whoever controls advanced chipmaking controls the future of computing and military power. The supply chain’s choke points — lithography, design, fabrication — are the new strategic geography.', genre: 'tech', rating: 4.4, publishedAt: new Date('2022-10-04'), buyLink: 'https://www.amazon.com/dp/1982172002' },
+  { title: 'Outlive: The Science and Art of Longevity', author: 'Peter Attia', description: 'A framework for extending not just lifespan but healthspan, targeting the four chronic diseases that end most lives decades too early.', takeaway: 'Medicine 3.0 means acting decades before disease: train for the centenarian decathlon, prioritize strength and VO2 max, and treat emotional health as a longevity organ.', genre: 'health', rating: 4.5, publishedAt: new Date('2023-03-28'), buyLink: 'https://www.amazon.com/dp/0593236599' },
+  { title: 'The Wright Brothers', author: 'David McCullough', description: 'The meticulously researched story of two bicycle mechanics from Ohio who solved the problem of powered flight through relentless iteration.', takeaway: 'The Wrights out-experimented better-funded rivals with a wind tunnel and a habit of learning from every crash. Mastery of fundamentals beats resources.', genre: 'history', rating: 4.5, publishedAt: new Date('2015-05-05'), buyLink: 'https://www.amazon.com/dp/1476728755' },
+  { title: 'Superintelligence', author: 'Nick Bostrom', description: 'A rigorous exploration of what happens if machine intelligence surpasses human intelligence, and how humanity might keep control of its own future.', takeaway: 'The control problem must be solved before superintelligence arrives, not after. Capability gains can be sudden, and value alignment is far harder than it sounds.', genre: 'tech', rating: 3.9, publishedAt: new Date('2014-07-03'), buyLink: 'https://www.amazon.com/dp/0198739834' },
+  { title: 'Range: Why Generalists Triumph in a Specialized World', author: 'David Epstein', description: 'Evidence that in complex, unpredictable fields, broad experience and late specialization beat early, narrow expertise.', takeaway: 'Sample widely before you specialize — your best match comes from experiments, not plans. In wicked domains, analogical thinking from other fields is a superpower.', genre: 'self-improvement', rating: 4.2, publishedAt: new Date('2019-05-28'), buyLink: 'https://www.amazon.com/dp/0735214484' },
+  { title: 'SPQR: A History of Ancient Rome', author: 'Mary Beard', description: 'A fresh, myth-busting history of how a small Italian village became an empire that still shapes law, politics, and culture today.', takeaway: 'Rome’s genius was extending citizenship to the conquered — an empire of inclusion as much as force. Its debates about liberty, security, and identity are still ours.', genre: 'history', rating: 4.1, publishedAt: new Date('2015-11-09'), buyLink: 'https://www.amazon.com/dp/1631492225' },
+  { title: 'Good to Great', author: 'Jim Collins', description: 'A five-year research project into why some companies make the leap to sustained excellence while comparable rivals stagnate.', takeaway: 'Great companies get the right people on the bus first, confront brutal facts, and push a simple flywheel with disciplined consistency — no silver bullets, just compounding momentum.', genre: 'business', rating: 4.1, publishedAt: new Date('2001-10-16'), buyLink: 'https://www.amazon.com/dp/0066620996' },
+];
+
+function bookCover(title: string): string {
+  // Deterministic placeholder cover; replaced with real covers once the
+  // Google Books cron runs with a valid API key.
+  const seed = encodeURIComponent(title.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  return `https://picsum.photos/seed/${seed}/400/600`;
+}
+
+async function main() {
+  console.log('[seedContent] Seeding news…');
+  for (const n of NEWS) {
+    const url = `https://example.com/news/${encodeURIComponent(n.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60))}`;
+    await db.newsArticle.upsert({
+      where: { url },
+      create: { ...n, url, imageUrl: `https://picsum.photos/seed/${encodeURIComponent(n.category + '-' + n.title.slice(0, 20))}/640/360` },
+      update: { publishedAt: n.publishedAt },
+    });
+  }
+
+  console.log('[seedContent] Seeding media…');
+  for (const m of MEDIA) {
+    await db.mediaContent.upsert({
+      where: { contentUrl: m.contentUrl },
+      create: m,
+      update: { publishedAt: m.publishedAt, title: m.title },
+    });
+  }
+
+  console.log('[seedContent] Seeding books…');
+  for (const b of BOOKS) {
+    const { takeaway, ...rest } = b;
+    await db.bookSummary.upsert({
+      where: { title_author: { title: b.title, author: b.author } },
+      create: { ...rest, threeSentenceTakeaway: takeaway, coverImage: bookCover(b.title) },
+      update: { rating: b.rating },
+    });
+  }
+
+  const [news, media, books] = await Promise.all([
+    db.newsArticle.count(),
+    db.mediaContent.count(),
+    db.bookSummary.count(),
+  ]);
+  console.log(`[seedContent] Done. news=${news} media=${media} books=${books}`);
+}
+
+main()
+  .catch((e) => {
+    console.error('[seedContent] Failed:', e);
+    process.exit(1);
+  })
+  .finally(() => process.exit(0));

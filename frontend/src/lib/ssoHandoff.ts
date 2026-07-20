@@ -17,7 +17,7 @@ export type SsoApp = 'edmentor' | 'edcompass' | 'edquiz';
 export async function redirectToApp(app: SsoApp, topic?: string): Promise<boolean> {
   try {
     // Read token from localStorage since this is a utility function outside React
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('edlearn_token') : null;
     const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;

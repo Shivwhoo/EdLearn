@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import LeftNavigationPanel from '@/components/Layout/LeftNavigationPanel';
 import InteractiveAssistant from '@/components/Layout/InteractiveAssistant';
 import LivingDocument from '@/components/Document/LivingDocument';
+import BadgeCelebrationModal from '@/components/Document/BadgeCelebrationModal';
 import { AudioPlayerDock } from '@/components/Audio/AudioPlayerDock';
 import { RefreshCw, AlertCircle, Menu, MessageSquare } from 'lucide-react';
 import axios from 'axios';
@@ -35,6 +36,10 @@ export default function WorkspacePage() {
   const [handoffLoading, setHandoffLoading] = useState<SsoApp | null>(null);
 
   const sentencesRef = useRef<string[]>([]);
+  // Remembers the last (day + podcast-mode) combo we auto-generated for, so
+  // selecting Duo Podcast triggers generation exactly once per day and a
+  // failed attempt never loops.
+  const podcastAutoGenKey = useRef<string | null>(null);
 
   const [isNavOpen, setIsNavOpen] = useState(true);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -94,25 +99,23 @@ export default function WorkspacePage() {
     fetchNotesHistory
   ]);
 
-  const handleGenerateContent = async () => {
+
+  // Fetch or trigger content generation when day or mode changes
+  // forceRefresh=true skips Redis cache — used by "Refine Notes" to always get new content
+  const handleGenerateContent = async (forceRefresh: boolean = false) => {
+
     if (!currentDay) return;
     setLoadingContent(true);
     setErrorMsg('');
     try {
-      const response = await axios.post(
-        '/api/generate',
-        {
-          topic: currentDay.title,
-          mode: activeMode,
-          difficulty: userProfile?.difficulty || 'Intermediate',
-          dayId: currentDay.id,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await axios.post('/api/generate', {
+        topic: currentDay.title,
+        mode: activeMode,
+        difficulty: userProfile?.difficulty || 'Intermediate',
+        dayId: currentDay.id,
+        forceRefresh,
+      });
+
 
       if (response.data?.success) {
         // Set content immediately from response so user sees it right away
@@ -131,6 +134,20 @@ export default function WorkspacePage() {
       setLoadingContent(false);
     }
   };
+
+  // Auto-generate a Duo Podcast when the user selects mode 7 and there isn't
+  // already a podcast script for the current day. Keyed by day+mode so it runs
+  // once per day (and re-runs when the day changes), never in a loop.
+  useEffect(() => {
+    if (activeMode !== 7 || !isMounted || !currentDay || isLoadingContent) return;
+    if (generatedContent?.script) return; // a podcast is already loaded
+    const key = `${currentDay.id}:7`;
+    if (podcastAutoGenKey.current === key) return;
+    podcastAutoGenKey.current = key;
+    handleGenerateContent(false);
+    // handleGenerateContent is stable enough for this one-shot trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMode, isMounted, currentDay, isLoadingContent, generatedContent]);
 
   // Shortcut buttons
   const handleShortcut = async (app: SsoApp, topic?: string) => {
@@ -191,7 +208,7 @@ export default function WorkspacePage() {
           )}
 
           <button
-            onClick={handleGenerateContent}
+            onClick={() => handleGenerateContent(true)}
             disabled={isLoadingContent}
             className="px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 disabled:opacity-50 rounded text-xs font-bold transition-all cursor-pointer"
           >
@@ -216,7 +233,7 @@ export default function WorkspacePage() {
         <div className="flex-1 overflow-hidden flex flex-col items-center bg-white">
           <div className="w-full max-w-5xl h-full flex flex-col">
             <LivingDocument
-              onTriggerGenerate={handleGenerateContent}
+              onTriggerGenerate={() => handleGenerateContent(true)}
               sentenceRef={sentencesRef}
             />
           </div>
@@ -232,6 +249,9 @@ export default function WorkspacePage() {
       {generatedContent && (
         <AudioPlayerDock sentences={sentencesRef.current} />
       )}
+
+      {/* Course-completion badge celebration (fires when the final day is done) */}
+      <BadgeCelebrationModal />
     </div>
   );
 }

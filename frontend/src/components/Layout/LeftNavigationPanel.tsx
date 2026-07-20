@@ -2,6 +2,8 @@ import React from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Calendar, CheckCircle2, ChevronRight, GraduationCap, Award, Compass, Zap, HelpCircle, Key, LogOut, X, Lock, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import BadgeDetailModal from '@/components/Document/BadgeDetailModal';
+import type { Badge } from '@/store/workspaceStore';
 
 export const LeftNavigationPanel: React.FC = () => {
   const {
@@ -14,8 +16,17 @@ export const LeftNavigationPanel: React.FC = () => {
     logout,
     user,
     token,
+    completedDays,
+    badges,
   } = useWorkspaceStore();
 
+  // How many days of the active roadmap are done (for the progress caption).
+  const totalDays = roadmap?.days.length ?? 0;
+  const completedCount = roadmap
+    ? roadmap.days.filter((d) => completedDays.has(d.id)).length
+    : 0;
+
+  const [viewBadge, setViewBadge] = React.useState<Badge | null>(null);
   const [showPasswordModal, setShowPasswordModal] = React.useState(false);
   const [currentPassword, setCurrentPassword] = React.useState('');
   const [newPassword, setNewPassword] = React.useState('');
@@ -85,31 +96,55 @@ export const LeftNavigationPanel: React.FC = () => {
 
         {/* Selected Roadmap Daily Checklist */}
         <div className="mb-8">
-          <h3 className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-4 flex items-center space-x-1">
-            <Calendar className="h-4 w-4 text-blue-600" />
-            <span>Roadmap Progress</span>
+          <h3 className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-4 flex items-center justify-between">
+            <span className="flex items-center space-x-1">
+              <Calendar className="h-4 w-4 text-blue-600" />
+              <span>Roadmap Progress</span>
+            </span>
+            {totalDays > 0 && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded normal-case tracking-normal ${completedCount >= totalDays
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-slate-100 text-slate-500'
+                }`}>
+                {completedCount}/{totalDays} done
+              </span>
+            )}
           </h3>
           <div className="space-y-2">
             {roadmap.days.map((day) => {
               const isSelected = currentDay?.id === day.id;
               const hasContent = (day.topics?.length ?? 0) > 0;
+              const isScrollCompleted = completedDays.has(day.id);
               return (
                 <button
                   key={day.id}
                   onClick={() => selectDay(day)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
-                    isSelected
-                      ? 'bg-blue-50 border-blue-300 text-blue-800'
-                      : hasContent
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${isSelected
+                    ? 'bg-blue-50 border-blue-300 text-blue-800'
+                    : isScrollCompleted
                       ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-slate-700'
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
-                  }`}
+                      : hasContent
+                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
-                    {hasContent ? (
-                      <CheckCircle2 className={`h-5 w-5 flex-shrink-0 ${isSelected ? 'text-blue-600' : 'text-emerald-600'}`} />
+                    {isScrollCompleted ? (
+                      // Fully scrolled through — solid filled check circle
+                      <div className={`h-5 w-5 flex-shrink-0 rounded-full flex items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-emerald-500'
+                        }`}>
+                        <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    ) : hasContent ? (
+                      // Notes generated but not yet read through — outline check
+                      <CheckCircle2 className={`h-5 w-5 flex-shrink-0 ${isSelected ? 'text-blue-400' : 'text-slate-400'
+                        }`} />
                     ) : (
-                      <div className={`h-5 w-5 flex-shrink-0 rounded-full border-2 ${isSelected ? 'border-blue-500' : 'border-slate-300'}`} />
+                      // No content yet — empty circle
+                      <div className={`h-5 w-5 flex-shrink-0 rounded-full border-2 ${isSelected ? 'border-blue-500' : 'border-slate-300'
+                        }`} />
                     )}
                     <div>
                       <div className="text-xs text-slate-500">Day {day.dayNumber}</div>
@@ -117,7 +152,7 @@ export const LeftNavigationPanel: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {hasContent && !isSelected && (
+                    {isScrollCompleted && !isSelected && (
                       <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded uppercase tracking-wide">Done</span>
                     )}
                     <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
@@ -138,11 +173,10 @@ export const LeftNavigationPanel: React.FC = () => {
           {/* Duo Podcast — always available */}
           <button
             onClick={() => setActiveMode(7)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-              activeMode === 7
-                ? 'bg-violet-50 border-violet-300 text-violet-700'
-                : 'bg-slate-50 border-slate-200 hover:bg-violet-50 hover:border-violet-200 text-slate-500 hover:text-violet-700'
-            }`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer ${activeMode === 7
+              ? 'bg-violet-50 border-violet-300 text-violet-700'
+              : 'bg-slate-50 border-slate-200 hover:bg-violet-50 hover:border-violet-200 text-slate-500 hover:text-violet-700'
+              }`}
           >
             <span className="text-lg">🎙️</span>
             <div>
@@ -153,6 +187,40 @@ export const LeftNavigationPanel: React.FC = () => {
               <span className="ml-auto text-[10px] font-semibold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded uppercase tracking-wide">Active</span>
             )}
           </button>
+        </div>
+
+        {/* Earned Badges shelf — course-completion rewards saved to the DB */}
+        <div className="border-t border-slate-200 pt-5 mt-5">
+          <h3 className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-3 flex items-center space-x-1">
+            <Award className="h-4 w-4 text-amber-500" />
+            <span>My Badges</span>
+          </h3>
+          {badges.length === 0 ? (
+            <p className="text-xs text-slate-500 italic leading-normal bg-slate-50 p-3 rounded-lg border border-slate-200">
+              Complete all days of a roadmap to earn your first course badge.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {badges.map((badge) => (
+                <button
+                  key={badge.id}
+                  onClick={() => setViewBadge(badge)}
+                  className="w-full text-left flex items-center gap-3 p-2.5 rounded-lg bg-gradient-to-br from-amber-50 to-white border border-amber-100 hover:border-amber-300 hover:shadow-sm transition-all cursor-pointer"
+                  title="View badge details"
+                >
+                  <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-sm">
+                    <Award className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-slate-800 truncate">{badge.title}</div>
+                    <div className="text-[10px] text-slate-500">
+                      {new Date(badge.earnedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>
@@ -265,6 +333,9 @@ export const LeftNavigationPanel: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Badge detail popup (opens when a badge card is clicked) */}
+      <BadgeDetailModal badge={viewBadge} onClose={() => setViewBadge(null)} />
     </aside>
   );
 };
