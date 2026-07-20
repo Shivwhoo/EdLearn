@@ -8,7 +8,7 @@ import axios from 'axios';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { token, user, setUserProfile, setRoadmap, logout } = useWorkspaceStore();
+  const { token, user, setUserProfile, setRoadmap, selectDay, logout } = useWorkspaceStore();
 
   const [isMounted, setIsMounted] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -57,6 +57,8 @@ export default function OnboardingPage() {
         deadline: deadlineDate.toISOString(),
         availableTime: availableTime.toString(),
         difficulty,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.data?.success) {
@@ -67,6 +69,8 @@ export default function OnboardingPage() {
           currentSkills: [],
           availableTime: availableTime.toString(),
           difficulty,
+        }, {
+          headers: { Authorization: `Bearer ${token}` },
         }).catch((err) => console.warn('Profile persist warning:', err));
 
         setUserProfile({
@@ -78,6 +82,12 @@ export default function OnboardingPage() {
         });
 
         setRoadmap(response.data.roadmap);
+
+        // Auto-select the first day so workspace doesn't show infinite spinner
+        if (response.data.roadmap?.days?.length > 0) {
+          selectDay(response.data.roadmap.days[0]);
+        }
+
         router.push('/workspace');
       } else {
         setErrorMsg('Failed to process your personalized roadmap. Verify server environment settings.');

@@ -1,10 +1,9 @@
-datasource db {
-  provider = "postgresql"
-}
-
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
 }
 
 model User {
@@ -18,7 +17,7 @@ model User {
   progress      Progress[]
   credits       Int           @default(15)
   subscription  Subscription?
-  workspace Workspace?
+  workspace     Workspace?
   badges Badge[]
 }
 
@@ -34,84 +33,85 @@ model Badge {
   imageUrl    String?
 
   earnedAt    DateTime @default(now())
+
 }
 
 model UserProfile {
   id            String   @id @default(uuid())
   userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   fullName      String?
   careerGoal    String?
   currentSkills String[]
-  availableTime Int      // in minutes
-  difficulty    String   @default("Intermediate") // Beginner, Intermediate, Advanced
+  availableTime Int
+  difficulty    String   @default("Intermediate")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Roadmap {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  deadline    DateTime
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  deadline     DateTime
   isAchievable Boolean  @default(true)
-  days        Day[]
-  createdAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  days         Day[]
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Day {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   roadmapId String
-  roadmap   Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   dayNumber Int
   title     String
-  duration  Int      // in minutes
+  duration  Int
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   topics    Topic[]
 }
 
 model Topic {
   id          String     @id @default(uuid())
   dayId       String
-  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
   title       String
-  mode        Int        // 1 to 6
-  notesHtml   String     @db.Text
+  mode        Int
+  notesHtml   String
   audioUrl    String?
-  audioTiming Json?      // For word highlighting word/time map
-  citations   Citation[]
+  audioTiming Json?
   completed   Boolean    @default(false)
   createdAt   DateTime   @default(now())
+  citations   Citation[]
+  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
 }
 
 model Citation {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   topicId   String
-  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
   label     String
-  rawText   String   @db.Text
+  rawText   String
   sourceUrl String?
+  topic     Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
 }
 
 model Progress {
   id          String   @id @default(uuid())
 
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   roadmapId   String
   dayId       String
 
   score       Int      @default(100)
   completedAt DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stripeId   String   @unique
-  status     String
-  tier       String   @default("FREE")
-  expiresAt  DateTime
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  stripeId  String   @unique
+  status    String
+  tier      String   @default("FREE")
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model NewsArticle {

@@ -1,5 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
 @import "tailwindcss";
+
+/* Fonts are intentionally kept network-free so the app renders instantly with
+   no dependency on fonts.googleapis.com (which previously hung page compiles
+   on offline/firewalled machines). `--font-inter` is a system-font stack that
+   closely mirrors Inter's metrics; the decorative "Instrument Serif" used on a
+   couple of headings falls back gracefully to the platform serif. If you want
+   the exact webfonts and have reliable network, re-add an @import here. */
 
 /* Marketing-site theme: clean light background with a blue accent, matching
    the fintech-style redesign of the public pages (home, about, contact).
@@ -14,6 +20,8 @@
   --border: rgba(15, 23, 42, 0.08);
   --scrollbar-thumb: #CBD5E1;
   --glow-color: rgba(37, 99, 235, 0.12);
+  /* System-font stack standing in for Inter — no network fetch required. */
+  --font-inter: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 html {

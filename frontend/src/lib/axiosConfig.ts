@@ -24,6 +24,7 @@ const errorHandler = (error: any) => {
 // Apply interceptor to the global axios instance
 axios.interceptors.response.use(
   (response) => response,
+
   errorHandler
 );
 
