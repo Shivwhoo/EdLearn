@@ -20,6 +20,7 @@ import passport from './auth/google';
 import newsRouter from './routes/news';
 import mediaRouter from './routes/media';
 import booksRouter from './routes/books';
+import visionBoardRouter from './routes/visionBoard';
 import { startContentCrons } from './services/contentCrons';
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
@@ -91,6 +92,12 @@ app.get('/api/health', (req, res) => {
 app.use('/api/news', newsRouter);
 app.use('/api/media', mediaRouter);
 app.use('/api/books', booksRouter);
+
+// --- Private per-student endpoints ---
+// `authenticate` is applied at the mount point, so every route inside the
+// Vision Board router is guaranteed a verified req.user and can scope its
+// queries to that id. Unauthenticated requests never reach the handlers.
+app.use('/api/vision-board', authenticate, visionBoardRouter);
 
 // --- Authentication Endpoints ---
 

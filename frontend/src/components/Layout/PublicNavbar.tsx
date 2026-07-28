@@ -32,7 +32,7 @@ export default function PublicNavbar() {
   // Hide the public marketing navbar on the authenticated app routes, which
   // have their own chrome: /workspace + /onboarding use their own layouts, and
   // /dashboard + /hub now use the persistent left Sidebar (see Sidebar.tsx).
-  const APP_ROUTES = ['/workspace', '/onboarding', '/dashboard', '/hub'];
+  const APP_ROUTES = ['/workspace', '/onboarding', '/dashboard', '/hub', '/vision-board'];
   const hideNavbar = APP_ROUTES.some((p) => pathname.startsWith(p));
   if (hideNavbar) return null;
 
