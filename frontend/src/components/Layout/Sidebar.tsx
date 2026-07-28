@@ -10,6 +10,7 @@ import {
   GraduationCap,
   LogOut,
   Menu,
+  Sparkles,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -34,6 +35,7 @@ interface NavItem {
 // Only routes that actually exist — no dead links / 404s.
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/vision-board', label: 'Vision Board', icon: Sparkles },
   { href: '/hub', label: 'Hub', icon: Compass },
 ];
 

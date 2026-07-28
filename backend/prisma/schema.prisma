@@ -19,6 +19,33 @@ model User {
   subscription  Subscription?
   workspace     Workspace?
   badges Badge[]
+  visions       Vision[]
+}
+
+/// A single card on a student's personal Vision Board — a learning goal,
+/// career ambition or aspiration they want to keep in front of them.
+/// Always scoped to one owner; the API never trusts a client-supplied userId.
+model Vision {
+  id          String   @id @default(uuid())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?  @db.Text
+  category    String   @default("other") // "education" | "career" | "skills" | "achievements" | "growth" | "projects" | "other"
+  imageUrl    String?  @db.Text          // remote https URL or a compact client-downscaled data URL
+  targetDate  DateTime?
+  quote       String?                    // short motivational line shown on the card
+  resourceUrl String?                    // optional link to a course, job posting, article...
+  status      String   @default("not_started") // "not_started" | "in_progress" | "achieved"
+  achievedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, status])
 }
 
 model Badge {
