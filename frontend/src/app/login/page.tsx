@@ -143,8 +143,12 @@ export default function LoginPage() {
         </div>
 
         {/* Google Sign In Button */}
+        {/* Relative path so this goes through the same next.config.ts rewrite
+            ("/api/:path*" -> backend) as every other API call in the app —
+            works locally (proxies to localhost:5000) and in any deployed
+            environment without a hardcoded backend origin. */}
         <button
-          onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+          onClick={() => window.location.href = '/api/auth/google'}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition"
         >
           <svg className="w-5 h-5" viewBox="0 0 48 48">
