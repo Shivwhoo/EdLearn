@@ -1,0 +1,48 @@
+# M2: Optional local observability stack. This is a compose "overlay" — it
+# is not merged into the main docker-compose.yml automatically, so the base
+# dev workflow (docker compose up) is completely unaffected by it.
+#
+# To run the app WITH monitoring locally:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up
+#
+# Prometheus: http://localhost:9090
+# Grafana:    http://localhost:3001  (login: admin / admin — change immediately
+#             if this ever runs anywhere reachable beyond your own machine)
+#
+# This is a starter setup for local/dev visibility into the metrics added in
+# backend/src/lib/metrics.ts — it is NOT a production-grade monitoring
+# deployment (no persistence guarantees, alerting, auth hardening, or HA).
+# For a Kubernetes deployment, use the cluster's existing Prometheus/Grafana
+# (e.g. via the kube-prometheus-stack Helm chart) pointed at the backend
+# Service's /metrics path instead of running these containers in-cluster.
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: edlearn-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: edlearn-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

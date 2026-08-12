@@ -22,7 +22,8 @@ spec:
         envFrom:
         - configMapRef:
             name: edlearn-config
-        # Optional: Add Secret reference for DATABASE_URL, REDIS_URL, etc.
+        - secretRef:
+            name: edlearn-secrets
         livenessProbe:
           httpGet:
             path: /api/health

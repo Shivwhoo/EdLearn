@@ -1,18 +1,17 @@
 import * as googleTTS from 'google-tts-api';
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
+import { getStorageProvider } from './storage/storage.service';
 
-// Files are written here and served back out via a static route mounted at
-// /api/tts/audio in index.ts (that path is deliberately under /api so the
-// existing frontend rewrite in next.config.ts, which proxies "/api/:path*"
-// to the backend, picks it up automatically — no frontend config changes).
-const AUDIO_DIR = path.join(__dirname, '../../tts-audio');
-
-if (!fs.existsSync(AUDIO_DIR)) {
-  fs.mkdirSync(AUDIO_DIR, { recursive: true });
-}
+// M2: Audio bytes go through the storage abstraction (backend/src/lib/storage)
+// instead of talking to fs directly. STORAGE_PROVIDER=local (default) keeps
+// the exact prior behavior — files land in backend/tts-audio/, served by the
+// express.static route mounted at /api/tts/audio in index.ts (deliberately
+// under /api so the existing frontend rewrite in next.config.ts, which
+// proxies "/api/:path*" to the backend, picks it up automatically — no
+// frontend config changes). STORAGE_PROVIDER=s3 durably persists the same
+// files to S3/R2 instead, which is required once the backend runs with more
+// than one replica (local disk is per-pod and not shared).
 
 /**
  * Generates a single MP3 file for the given text using google-tts-api,
@@ -66,10 +65,14 @@ export async function generateSpeechFile(text: string, topicId: string): Promise
 
   const combined = Buffer.concat(buffers);
   const filename = `${topicId}.mp3`;
-  const filePath = path.join(AUDIO_DIR, filename);
-  fs.writeFileSync(filePath, combined);
 
-  return `/api/tts/audio/${filename}`;
+  try {
+    return await getStorageProvider().upload({ buffer: combined, key: filename, contentType: 'audio/mpeg' });
+  } catch (err) {
+    throw new Error(
+      `Failed to persist generated speech audio: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }
 
 /**
@@ -108,12 +111,11 @@ export async function generatePodcastAudio(
   // Content-addressed filename → identical scripts reuse the same audio file.
   const hash = crypto.createHash('sha1').update(JSON.stringify(turns)).digest('hex').slice(0, 16);
   const filename = `podcast_${hash}.mp3`;
-  const filePath = path.join(AUDIO_DIR, filename);
-  const publicUrl = `/api/tts/audio/${filename}`;
+  const storage = getStorageProvider();
 
   // Cache hit: the file for this exact script already exists — serve it as-is.
-  if (fs.existsSync(filePath)) {
-    return publicUrl;
+  if (await storage.exists(filename)) {
+    return storage.urlFor(filename);
   }
 
   const buffers: Buffer[] = [];
@@ -135,6 +137,11 @@ export async function generatePodcastAudio(
   }
 
   const combined = Buffer.concat(buffers);
-  fs.writeFileSync(filePath, combined);
-  return publicUrl;
+  try {
+    return await storage.upload({ buffer: combined, key: filename, contentType: 'audio/mpeg' });
+  } catch (err) {
+    throw new Error(
+      `Failed to persist generated podcast audio: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }

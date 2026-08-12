@@ -1,0 +1,46 @@
+# M2: Horizontal Pod Autoscaler for the frontend Deployment.
+#
+# PREREQUISITE: same as k8s/backend/hpa.yaml — requires metrics-server (or
+# equivalent) installed in the cluster; verify with `kubectl top pods`.
+#
+# The frontend is a stateless Next.js server with no local-disk dependency,
+# so it is safe to scale horizontally regardless of the backend's storage
+# configuration.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+  namespace: edlearn
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-deployment
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
