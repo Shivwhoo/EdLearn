@@ -1,0 +1,86 @@
+# M2 (Infrastructure/DevOps) — owns this workflow.
+#
+# Scope is intentionally narrow: build the backend + frontend Docker images
+# and push them to a registry. It does NOT lint, type-check, or run tests —
+# that's M1's general CI pipeline, which does not exist in this repo yet.
+# When M1 adds it, this workflow is designed to sit alongside it unmodified;
+# it does not touch M1's job names, triggers, or files.
+#
+# Registry: GitHub Container Registry (ghcr.io), authenticated with the
+# built-in GITHUB_TOKEN — a GitHub Actions secret that's automatically
+# available with no extra setup, so this works out of the box. To push to a
+# different registry (Docker Hub, ECR, etc.) instead, swap the `login-uses`
+# step's `registry`/`username`/`password` for that registry's equivalents,
+# sourced from repository secrets — never hardcode credentials.
+name: Docker Build & Push (M2)
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/docker-build-push.yml"
+  workflow_dispatch: {}
+
+# Cancel superseded runs on the same ref so pushes don't queue up stale builds.
+concurrency:
+  group: docker-build-push-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.service }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          # Only the backend Dockerfile declares this build arg (used solely
+          # to run `prisma generate`, which validates schema.prisma against a
+          # syntactically-valid connection string — it does not connect to a
+          # live database at build time). It's a harmless no-op for the
+          # frontend build, which has no matching ARG to receive it.
+          build-args: |
+            DATABASE_URL=postgresql://build:build@localhost:5432/build

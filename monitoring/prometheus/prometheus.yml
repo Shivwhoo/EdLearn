@@ -1,0 +1,12 @@
+# M2: Local dev Prometheus scrape config. Scrapes the backend's /metrics
+# endpoint (added in backend/src/lib/metrics.ts). Only used when the
+# monitoring compose overlay is started — see docker-compose.monitoring.yml.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "edlearn-backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:5000"]

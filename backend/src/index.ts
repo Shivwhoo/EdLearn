@@ -16,6 +16,13 @@ import { redisCache } from './lib/redis';
 import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
 import passport from './auth/google';
+import { logger, httpLogger } from './lib/logger';
+import { initSentry, sentryErrorHandler, captureException } from './lib/sentry';
+import { metricsMiddleware, metricsHandler, ttsGenerationDurationSeconds } from './lib/metrics';
+
+// M2: Sentry must be initialized before routes/middleware are registered so
+// it can instrument them. No-ops entirely if SENTRY_DSN is unset.
+initSentry();
 
 import newsRouter from './routes/news';
 import mediaRouter from './routes/media';
@@ -45,8 +52,19 @@ app.use(cors({
 
 app.use(passport.initialize());
 
+// M2: Structured request logging (method, path, status, duration, request id)
+app.use(httpLogger);
+
+// M2: Prometheus request-count/latency instrumentation for every route below.
+app.use(metricsMiddleware);
+
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
+
+// M2: Prometheus scrape endpoint. Deliberately unauthenticated (that's how
+// Prometheus expects to reach it) but exposes only aggregate request/latency
+// counters — no request bodies, headers, or user data.
+app.get('/metrics', metricsHandler);
 
 // Serve generated TTS audio files. Mounted under /api so the existing
 // frontend rewrite ("/api/:path*" -> backend) already proxies it — see
@@ -1157,7 +1175,15 @@ app.post('/api/tts/generate', authenticate, async (req: express.Request, res: ex
       parsedContent.summary,
     ].filter(Boolean).join('. ');
 
-    const audioUrl = await generateSpeechFile(textToSpeak, topic.id);
+    const endTtsTimer = ttsGenerationDurationSeconds.startTimer({ route: '/api/tts/generate' });
+    let audioUrl: string;
+    try {
+      audioUrl = await generateSpeechFile(textToSpeak, topic.id);
+      endTtsTimer({ outcome: 'success' });
+    } catch (ttsErr) {
+      endTtsTimer({ outcome: 'error' });
+      throw ttsErr;
+    }
 
     await db.topic.update({ where: { id: topic.id }, data: { audioUrl } });
 
@@ -1183,7 +1209,15 @@ app.post('/api/tts/podcast', authenticate, async (req: express.Request, res: exp
 
     // Synthesise (or reuse a cached, content-hashed) MP3 from the script.
     // generatePodcastAudio() is self-caching by script hash and DB-independent.
-    const audioUrl = await generatePodcastAudio(script);
+    const endTtsTimer = ttsGenerationDurationSeconds.startTimer({ route: '/api/tts/podcast' });
+    let audioUrl: string;
+    try {
+      audioUrl = await generatePodcastAudio(script);
+      endTtsTimer({ outcome: 'success' });
+    } catch (ttsErr) {
+      endTtsTimer({ outcome: 'error' });
+      throw ttsErr;
+    }
 
     // Best-effort only: if topicId refers to a real Topic the user owns, cache
     // the audio URL on it for history. A non-Topic id is simply ignored — the
@@ -1266,6 +1300,11 @@ app.use('/api', (req: express.Request, res: express.Response) => {
   res.status(404).json({ error: `No API route matches ${req.method} ${req.originalUrl}` });
 });
 
+// M2: Sentry's Express error handler must be registered after all routes but
+// before any other error-handling middleware, so it can capture the error
+// and forward it to our own handler below. No-ops if Sentry isn't configured.
+sentryErrorHandler(app);
+
 // Catch-all error handler. Anything thrown synchronously in a route, passed
 // to next(err), or produced by the CORS origin callback above lands here —
 // guaranteeing a JSON body instead of Express's default HTML error page
@@ -1274,10 +1313,10 @@ app.use('/api', (req: express.Request, res: express.Response) => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err?.message === 'Not allowed by CORS') {
-    console.warn(`[CORS] Rejected request from origin: ${req.headers.origin}`);
+    logger.warn({ origin: req.headers.origin }, '[CORS] Rejected request');
     return res.status(403).json({ error: 'This origin is not permitted to access the API.' });
   }
-  console.error('Unhandled server error:', err);
+  logger.error({ err, reqId: (req as any).id }, 'Unhandled server error');
   res.status(500).json({ error: 'Internal Server Error.' });
 });
 
@@ -1285,15 +1324,16 @@ async function connectMongoWithRetry(retries = 3, delayMs = 3000): Promise<void>
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await connectMongo();
-      console.log('MongoDB connected at startup');
+      logger.info('MongoDB connected at startup');
       return;
     } catch (err: any) {
       if (attempt < retries) {
-        console.warn(`MongoDB connection attempt ${attempt}/${retries} failed, retrying in ${delayMs}ms:`, err?.message);
+        logger.warn({ attempt, retries, delayMs, err: err?.message }, 'MongoDB connection attempt failed, retrying');
         await new Promise((res) => setTimeout(res, delayMs));
       } else {
         // Non-fatal: server starts without MongoDB; Mongoose routes return 503
-        console.error('MongoDB unavailable after all retries — server starting without it. Market-demand trends will be empty until MongoDB is reachable.', err?.message);
+        logger.error({ err: err?.message }, 'MongoDB unavailable after all retries — server starting without it. Market-demand trends will be empty until MongoDB is reachable.');
+        captureException(err);
       }
     }
   }
@@ -1304,20 +1344,21 @@ async function startServer() {
   await connectMongoWithRetry();
 
   app.listen(PORT, () => {
-    console.log(`Backend server successfully listening on port ${PORT}`);
+    logger.info({ port: PORT }, 'Backend server successfully listening');
     // Fire-and-forget: BullMQ worker is optional; Redis unavailability must not crash startup
     startMarketWorker().catch((err) => {
-      console.warn('[BullMQ] Worker startup error (non-fatal):', err?.message || err);
+      logger.warn({ err: err?.message || err }, '[BullMQ] Worker startup error (non-fatal)');
     });
     // Fire-and-forget: content crons (news/media/books) are optional too
     startContentCrons().catch((err) => {
-      console.warn('[ContentCrons] Startup error (non-fatal):', err?.message || err);
+      logger.warn({ err: err?.message || err }, '[ContentCrons] Startup error (non-fatal)');
     });
   });
 }
 
 startServer().catch((err) => {
-  console.error('Failed to start server:', err);
+  logger.fatal({ err }, 'Failed to start server');
+  captureException(err);
   process.exit(1);
 });
 // (content sections: news/media/books routers + crons wired above)
