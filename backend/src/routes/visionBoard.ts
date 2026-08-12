@@ -213,7 +213,7 @@ router.get('/', async (req: Request, res: Response): Promise<any> => {
 });
 
 /** GET /api/vision-board/:id — a single vision, only if the caller owns it. */
-router.get('/:id', async (req: Request, res: Response): Promise<any> => {
+router.get('/:id', async (req: Request<{ id: string }>, res: Response): Promise<any> => {
   const userId = (req as AuthenticatedRequest).user!.id;
   try {
     const vision = await db.vision.findFirst({ where: { id: req.params.id, userId } });
@@ -253,7 +253,7 @@ router.post('/', async (req: Request, res: Response): Promise<any> => {
 });
 
 /** PUT /api/vision-board/:id — full update of a vision the caller owns. */
-router.put('/:id', async (req: Request, res: Response): Promise<any> => {
+router.put('/:id', async (req: Request<{ id: string }>, res: Response): Promise<any> => {
   const userId = (req as AuthenticatedRequest).user!.id;
   const result = validateVisionPayload(req.body);
   if ('errors' in result) {
@@ -289,7 +289,7 @@ router.put('/:id', async (req: Request, res: Response): Promise<any> => {
  * PATCH /api/vision-board/:id/status — status-only transition.
  * Powers the "Mark as Achieved" card action without round-tripping the whole form.
  */
-router.patch('/:id/status', async (req: Request, res: Response): Promise<any> => {
+router.patch('/:id/status', async (req: Request<{ id: string }>, res: Response): Promise<any> => {
   const userId = (req as AuthenticatedRequest).user!.id;
   const status = optionalString(req.body?.status)?.toLowerCase();
 
@@ -325,7 +325,7 @@ router.patch('/:id/status', async (req: Request, res: Response): Promise<any> =>
 });
 
 /** DELETE /api/vision-board/:id — delete a vision the caller owns. */
-router.delete('/:id', async (req: Request, res: Response): Promise<any> => {
+router.delete('/:id', async (req: Request<{ id: string }>, res: Response): Promise<any> => {
   const userId = (req as AuthenticatedRequest).user!.id;
   try {
     // deleteMany scoped by userId is atomic: a foreign id simply matches 0 rows.
