@@ -1,0 +1,126 @@
+# EdLearn CI Pipeline
+#
+# Runs on every pull-request and on every push to main / dev.
+#
+# Jobs (run in parallel where safe):
+#   1. lint-and-typecheck  — tsc --noEmit in the backend
+#   2. test                — vitest run with coverage report
+#   3. docker-build        — build the backend Docker image (no push)
+#
+# Secrets required in GitHub repo settings:
+#   DATABASE_URL  — only needed during `prisma generate` inside Docker build
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Job 1: Type-check
+  # ──────────────────────────────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Type-Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client (needed for type resolution)
+        env:
+          # Prisma generate does not need a live DB; use a placeholder URL
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+        run: npx prisma generate
+
+      - name: TypeScript type-check
+        run: npm run typecheck
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Job 2: Test suite
+  # ──────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      JWT_SECRET: ci-jwt-secret-at-least-32-characters-for-tests
+      SSO_SHARED_SECRET: ci-sso-shared-secret
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+        run: npx prisma generate
+
+      - name: Run test suite with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: backend/coverage/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Job 3: Docker build (dry-run — validates Dockerfile, no push)
+  # ──────────────────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    # Only waste build minutes when the code/Dockerfile actually changed
+    needs: [lint-and-typecheck]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: edlearn-backend:ci-${{ github.sha }}
+          # Pass a placeholder DATABASE_URL so prisma generate inside the
+          # builder stage does not fail. The real URL is injected at runtime.
+          build-args: |
+            DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -12,6 +12,7 @@ import MarketDemand from './lib/models/MarketDemand';
 import { startMarketWorker } from './lib/queues/marketQueue';
 import { hashPassword, verifyPassword, generateToken } from './lib/auth';
 import { authenticate, AuthenticatedRequest } from './middleware/auth';
+import { validate } from './middleware/validate';
 import { redisCache } from './lib/redis';
 import { generateHandoffToken, buildHandoffUrl, SsoApp } from './lib/sso';
 import { generateSpeechFile, generatePodcastAudio } from './lib/tts';
@@ -28,6 +29,11 @@ import newsRouter from './routes/news';
 import mediaRouter from './routes/media';
 import booksRouter from './routes/books';
 import visionBoardRouter from './routes/visionBoard';
+import visionMilestonesRouter from './routes/visionMilestones';
+import authRouter from './routes/auth.router';
+import gdprRouter from './routes/gdpr.router';
+import { GenerateSchema } from './schemas/generate.schemas';
+import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
@@ -46,7 +52,7 @@ console.log(`[CORS] Allowed origin(s): ${allowedOrigins.join(', ')}`);
 app.use(cors({
   origin: true,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -116,6 +122,15 @@ app.use('/api/books', booksRouter);
 // Vision Board router is guaranteed a verified req.user and can scope its
 // queries to that id. Unauthenticated requests never reach the handlers.
 app.use('/api/vision-board', authenticate, visionBoardRouter);
+app.use('/api/vision-milestones', authenticate, visionMilestonesRouter);
+
+// --- Auth router (signup, login, refresh, 2FA, forgot/reset-password) ---
+// This router supersedes the inline /api/auth/* handlers below for new features.
+// The inline handlers remain for backward-compat with existing 7-day tokens.
+app.use('/api/auth', authRouter);
+
+// --- GDPR endpoints (data export, account deletion) ---
+app.use('/api/gdpr', gdprRouter);
 
 // --- Authentication Endpoints ---
 
@@ -509,7 +524,7 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
 });
 
 // 2. Generate Content (6 Modes + RAG)
-app.post('/api/generate', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/generate', authenticate, validate(GenerateSchema), async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { topic, mode, difficulty, url, dayId, forceRefresh } = req.body;
 
@@ -828,7 +843,7 @@ ${firstPassResponse}`;
 });
 
 // 3. Roadmap Creation
-app.post('/api/roadmap', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/roadmap', authenticate, validate(RoadmapCreateSchema), async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { goal, deadline, availableTime, difficulty, userId } = req.body;
 

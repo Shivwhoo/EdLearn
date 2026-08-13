@@ -20,6 +20,7 @@ import Sidebar from '@/components/Layout/Sidebar';
 import VisionCard from '@/components/VisionBoard/VisionCard';
 import VisionFormModal from '@/components/VisionBoard/VisionFormModal';
 import DeleteVisionDialog from '@/components/VisionBoard/DeleteVisionDialog';
+import VisionRoadmapSection from '@/components/VisionBoard/VisionRoadmapSection';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import {
   SORT_OPTIONS,
@@ -551,6 +552,11 @@ export default function VisionBoardPage() {
                 />
               ))}
             </div>
+          )}
+
+          {/* Roadmap — milestones persisted in the database, not in localStorage */}
+          {authToken && (
+            <VisionRoadmapSection visions={visions} token={authToken} />
           )}
         </div>
 

@@ -47,8 +47,13 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
         .replace(/\|([^|]*)\|\s*-\s*>/g, '|$1|')
         .trim();
 
-      // Try to render the diagram code
-      mermaid.render(id, sanitizedChart)
+      // Pre-validate the chart before rendering so we can show our own
+      // error UI instead of Mermaid v11's default "bomb" error elements.
+      mermaid.parse(sanitizedChart)
+        .then(() => {
+          // Chart is valid — now render it
+          return mermaid.render(id, sanitizedChart);
+        })
         .then((res) => {
           if (isMounted && containerRef.current) {
             containerRef.current.innerHTML = res.svg;
@@ -61,6 +66,10 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
           if (isMounted) {
             console.error('Mermaid render error:', err);
             setError('Failed to parse visual flowchart syntax.');
+            // Clear any partial/error HTML Mermaid may have injected
+            if (containerRef.current) {
+              containerRef.current.innerHTML = '';
+            }
           }
         });
     } catch (err: any) {

@@ -1,7 +1,21 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
+import { validateQuery } from '../middleware/validate';
+import { BooksQuerySchema } from '../schemas/content.schemas';
 
 const router = Router();
+
+// Rate limit: 60 requests per 15 minutes per IP
+const booksLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests to the books API. Please try again in 15 minutes.' },
+});
+
+router.use(booksLimiter);
 
 const GENRES = ['business', 'tech', 'science', 'self-improvement', 'history', 'health'];
 
@@ -11,13 +25,21 @@ const GENRES = ['business', 'tech', 'science', 'self-improvement', 'history', 'h
  *               page (default 1), limit (default 20, max 50), search
  * Returns: { data, total, page, limit }
  */
-router.get('/', async (req: Request, res: Response): Promise<any> => {
+router.get('/', validateQuery(BooksQuerySchema), async (req: Request, res: Response): Promise<any> => {
   try {
-    const category = String(req.query.category || '').toLowerCase();
-    const sort = String(req.query.sort || 'popularity').toLowerCase();
-    const search = String(req.query.search || '').trim();
-    const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit), 10) || 20));
+    const q = (req as any).validatedQuery as {
+      category?: string;
+      sort?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+
+    const category = (q.category || '').toLowerCase();
+    const sort = (q.sort || 'popularity').toLowerCase();
+    const search = (q.search || '').trim();
+    const page = Math.max(1, q.page || 1);
+    const limit = Math.min(50, Math.max(1, q.limit || 20));
 
     const where: any = {};
     if (category && category !== 'all' && GENRES.includes(category)) {

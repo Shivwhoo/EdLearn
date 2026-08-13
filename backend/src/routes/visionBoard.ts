@@ -1,6 +1,17 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
 import { AuthenticatedRequest } from '../middleware/auth';
+
+// Rate limit: 120 requests per 15 minutes per IP (authenticated, interactive route)
+const visionBoardLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests to the vision board API. Please slow down.' },
+});
+
 
 /**
  * Vision Board API — a student's private board of learning/career goals.
@@ -21,6 +32,8 @@ import { AuthenticatedRequest } from '../middleware/auth';
  */
 
 const router = Router();
+
+router.use(visionBoardLimiter);
 
 export const VISION_CATEGORIES = [
   'education',
@@ -216,7 +229,7 @@ router.get('/', async (req: Request, res: Response): Promise<any> => {
 router.get('/:id', async (req: Request<{ id: string }>, res: Response): Promise<any> => {
   const userId = (req as AuthenticatedRequest).user!.id;
   try {
-    const vision = await db.vision.findFirst({ where: { id: req.params.id, userId } });
+    const vision = await db.vision.findFirst({ where: { id: String(req.params.id), userId } });
     if (!vision) {
       return res.status(404).json({ error: 'Vision not found.' });
     }
@@ -262,7 +275,7 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response): Promise<
 
   try {
     const existing = await db.vision.findFirst({
-      where: { id: req.params.id, userId },
+      where: { id: String(req.params.id), userId },
       select: { id: true, status: true, achievedAt: true },
     });
     if (!existing) {
@@ -302,7 +315,7 @@ router.patch('/:id/status', async (req: Request<{ id: string }>, res: Response):
 
   try {
     const existing = await db.vision.findFirst({
-      where: { id: req.params.id, userId },
+      where: { id: String(req.params.id), userId },
       select: { id: true, achievedAt: true },
     });
     if (!existing) {
@@ -329,7 +342,7 @@ router.delete('/:id', async (req: Request<{ id: string }>, res: Response): Promi
   const userId = (req as AuthenticatedRequest).user!.id;
   try {
     // deleteMany scoped by userId is atomic: a foreign id simply matches 0 rows.
-    const deleted = await db.vision.deleteMany({ where: { id: req.params.id, userId } });
+    const deleted = await db.vision.deleteMany({ where: { id: String(req.params.id), userId } });
     if (deleted.count === 0) {
       return res.status(404).json({ error: 'Vision not found.' });
     }

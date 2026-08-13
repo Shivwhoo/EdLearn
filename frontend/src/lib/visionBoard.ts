@@ -365,3 +365,82 @@ export function readFieldErrors(err: unknown): VisionFieldErrors {
   }
   return {};
 }
+
+// ─── Milestones ────────────────────────────────────────────────────────────
+// Backed by /api/vision-milestones — stored in the database, NOT localStorage.
+
+const MILESTONE_BASE = '/api/vision-milestones';
+
+/** Shape returned by the API for a single milestone. */
+export interface Milestone {
+  id:          string;
+  userId:      string;
+  visionId:    string | null;
+  title:       string;
+  description: string;
+  targetDate:  string | null;   // ISO date string or null
+  sortOrder:   number;
+  completed:   boolean;
+  createdAt:   string;
+  updatedAt:   string;
+}
+
+/** Shape the form collects and sends to the API. */
+export interface MilestonePayload {
+  title:       string;
+  description: string;
+  targetDate:  string;          // yyyy-mm-dd or empty string
+  visionId:    string;          // empty string = no linked vision
+  completed:   boolean;
+  sortOrder:   number;
+}
+
+/** Field-level errors the backend may return on a 400 for milestones. */
+export type MilestoneFieldErrors = Partial<Record<keyof MilestonePayload, string>>;
+
+const serializeMilestone = (p: MilestonePayload) => ({
+  title:       p.title.trim(),
+  description: p.description.trim(),
+  targetDate:  p.targetDate || null,
+  visionId:    p.visionId   || null,
+  completed:   p.completed,
+  sortOrder:   p.sortOrder,
+});
+
+/** GET /api/vision-milestones — all milestones for the current user. */
+export async function fetchMilestones(token: string): Promise<Milestone[]> {
+  const res = await axios.get(MILESTONE_BASE, authHeaders(token));
+  return (res.data?.milestones ?? []) as Milestone[];
+}
+
+/** POST /api/vision-milestones — create a new milestone. */
+export async function createMilestone(token: string, payload: MilestonePayload): Promise<Milestone> {
+  const res = await axios.post(MILESTONE_BASE, serializeMilestone(payload), authHeaders(token));
+  return res.data?.milestone as Milestone;
+}
+
+/** PUT /api/vision-milestones/:id — full update. */
+export async function updateMilestone(token: string, id: string, payload: MilestonePayload): Promise<Milestone> {
+  const res = await axios.put(`${MILESTONE_BASE}/${id}`, serializeMilestone(payload), authHeaders(token));
+  return res.data?.milestone as Milestone;
+}
+
+/** PATCH /api/vision-milestones/:id/complete — toggle completed flag. */
+export async function toggleMilestoneComplete(token: string, id: string): Promise<Milestone> {
+  const res = await axios.patch(`${MILESTONE_BASE}/${id}/complete`, {}, authHeaders(token));
+  return res.data?.milestone as Milestone;
+}
+
+/** DELETE /api/vision-milestones/:id */
+export async function deleteMilestoneApi(token: string, id: string): Promise<void> {
+  await axios.delete(`${MILESTONE_BASE}/${id}`, authHeaders(token));
+}
+
+/** Field errors from a 400 milestone response. */
+export function readMilestoneFieldErrors(err: unknown): MilestoneFieldErrors {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { fields?: MilestoneFieldErrors } | undefined;
+    if (data?.fields) return data.fields;
+  }
+  return {};
+}

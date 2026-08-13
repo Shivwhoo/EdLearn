@@ -114,6 +114,8 @@ export default function WorkspacePage() {
         difficulty: userProfile?.difficulty || 'Intermediate',
         dayId: currentDay.id,
         forceRefresh,
+      }, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
 

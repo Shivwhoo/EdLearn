@@ -44,7 +44,13 @@ export interface Badge {
 
 function getInitialToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('edlearn_token');
+  const token = localStorage.getItem('edlearn_token');
+  // Restore the axios default Authorization header on page refresh
+  // so all axios calls (including /api/generate) are authenticated.
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+  return token;
 }
 
 function getInitialUser(): any | null {
