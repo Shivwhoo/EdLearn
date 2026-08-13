@@ -20,6 +20,8 @@ router.use(mediaLimiter);
 const CATEGORIES = ['business', 'science', 'history', 'health', 'tech', 'culture'];
 const TYPES = ['video', 'audio'];
 
+let lastMediaFetch = 0;
+
 /**
  * GET /api/media
  * Query params: category, type ('video'|'audio'), page (default 1),
@@ -41,6 +43,12 @@ router.get('/', validateQuery(MediaQuerySchema), async (req: Request, res: Respo
     const search = (q.search || '').trim();
     const page = Math.max(1, q.page || 1);
     const limit = Math.min(50, Math.max(1, q.limit || 20));
+
+    // M6: Trigger background update on page refresh (throttled to once per 5 min)
+    if (Date.now() - lastMediaFetch > 5 * 60 * 1000) {
+      lastMediaFetch = Date.now();
+      runMediaFetch().catch((err) => console.error('[api/media] Background update error:', err));
+    }
 
     const where: any = {};
     if (category && category !== 'all' && CATEGORIES.includes(category)) {
@@ -75,3 +83,4 @@ router.get('/', validateQuery(MediaQuerySchema), async (req: Request, res: Respo
 });
 
 export default router;
+

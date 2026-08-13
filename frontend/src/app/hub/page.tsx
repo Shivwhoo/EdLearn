@@ -3,7 +3,19 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { Users, Compass, HelpCircle, ArrowRight, RefreshCw, Info } from 'lucide-react';
+import {
+  Users,
+  Compass,
+  HelpCircle,
+  ArrowRight,
+  RefreshCw,
+  Info,
+  History,
+  Play,
+  Headphones,
+  MonitorPlay,
+  X,
+} from 'lucide-react';
 import { redirectToApp, SsoApp } from '@/lib/ssoHandoff';
 import Sidebar from '@/components/Layout/Sidebar';
 
@@ -29,12 +41,98 @@ const SAMPLE_COMPASS_RESULT = {
   scoredOn: '3 days ago',
 };
 
+/** Detail modal with an embedded player */
+function PlayerModal({ item, onClose }: { item: any; onClose: () => void }) {
+  const ytId = item.contentType === 'video' ? youtubeId(item.contentUrl) : null;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-3xl bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Player */}
+        {ytId ? (
+          <div className="aspect-video bg-black">
+            <iframe
+              src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
+              title={item.title}
+              className="h-full w-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.thumbnailUrl} alt="" className="w-full h-56 object-cover opacity-70" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
+            <div className="absolute bottom-4 left-4 right-4">
+              <audio controls autoPlay src={item.contentUrl} className="w-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Meta */}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white mb-3">
+                {item.contentType === 'video' ? (
+                  <MonitorPlay className="h-3 w-3 text-red-400" />
+                ) : (
+                  <Headphones className="h-3 w-3 text-cyan-300" />
+                )}
+                {item.contentType === 'video' ? 'Video' : 'Podcast'} · {item.channelName}
+              </span>
+              <h3 className="text-lg font-bold text-white leading-snug">{item.title}</h3>
+            </div>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HubPage() {
   const router = useRouter();
   const { token, currentDay } = useWorkspaceStore();
   const [isMounted, setIsMounted] = useState(false);
   const [handoffLoading, setHandoffLoading] = useState<SsoApp | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [history, setHistory] = useState<any[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
+
+  const loadHistory = () => {
+    try {
+      const historyJson = localStorage.getItem('media_history');
+      if (historyJson) {
+        setHistory(JSON.parse(historyJson));
+      }
+    } catch (err) {
+      console.error('Failed to load media history:', err);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -45,6 +143,14 @@ export default function HubPage() {
       router.push('/login');
     }
   }, [isMounted, token, router]);
+
+  useEffect(() => {
+    if (isMounted && token) {
+      loadHistory();
+      window.addEventListener('mediaHistoryUpdate', loadHistory);
+      return () => window.removeEventListener('mediaHistoryUpdate', loadHistory);
+    }
+  }, [isMounted, token]);
 
   const handleOpenApp = async (app: SsoApp, topic?: string) => {
     if (handoffLoading) return;
@@ -197,8 +303,63 @@ export default function HubPage() {
             </button>
           </div>
         </div>
+
+        {/* Recently Viewed Media History */}
+        <div className="mt-12 pt-6 border-t border-slate-200 space-y-6">
+          <div className="flex items-center gap-2 text-slate-800">
+            <History className="h-5.5 w-5.5 text-slate-500" />
+            <div>
+              <h2 className="text-lg font-bold">Recently Listened & Watched</h2>
+              <p className="text-xs text-slate-500 leading-normal">
+                Quick access to your learning history across talks, podcasts, and videos.
+              </p>
+            </div>
+          </div>
+
+          {history.length === 0 ? (
+            <div className="p-8 rounded-2xl border border-dashed border-slate-200 text-center text-slate-400 text-xs">
+              No recent history. Play media on the Home page or Media Explorer to see it here!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              {history.map((item) => {
+                const isVideo = item.contentType === 'video';
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedMedia(item)}
+                    className="group relative flex flex-col text-left rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden cursor-pointer animate-fade-in"
+                  >
+                    <div className="relative h-32 bg-slate-900 flex-shrink-0 w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent" />
+                      <span className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="flex items-center justify-center h-10 w-10 rounded-full bg-white/20 backdrop-blur border border-white/30 text-white">
+                          <Play className="h-4 w-4 ml-0.5" fill="currentColor" />
+                        </span>
+                      </span>
+                      <span className="absolute top-2.5 left-2.5 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-950/70 backdrop-blur border border-white/10 text-white">
+                        {isVideo ? <MonitorPlay className="h-2.5 w-2.5 text-red-400" /> : <Headphones className="h-2.5 w-2.5 text-cyan-300" />}
+                        {isVideo ? 'Video' : 'Podcast'}
+                      </span>
+                    </div>
+                    <div className="p-3.5 space-y-1">
+                      <h3 className="clamp-2 text-xs font-bold text-slate-800 leading-snug group-hover:text-blue-600 transition-colors min-h-[2.6em]">{item.title}</h3>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                        <span className="truncate max-w-[65%]">{item.channelName}</span>
+                        <span>{timeAgo(item.watchedAt)}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       </main>
     </>
   );
 }
+
