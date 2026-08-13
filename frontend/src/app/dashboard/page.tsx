@@ -17,10 +17,12 @@ import {
   Lightbulb,
   ChevronDown,
   Award,
-  Flame
+  Flame,
+  Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 import BadgeDetailModal from '@/components/Document/BadgeDetailModal';
+import Sidebar from '@/components/Layout/Sidebar';
 
 // --- Trending Skills: curation, categories & helpers -----------------------
 
@@ -120,29 +122,49 @@ export default function DashboardPage() {
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
   const [isFactExpanded, setIsFactExpanded] = useState(false);
 
+  // ✅ Helper to get token from store OR localStorage
+  const getAuthToken = () => {
+    if (typeof window === 'undefined') {
+      return token;
+    }
+
+    return token || localStorage.getItem('edlearn_token') || null;
+  };
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Protected route check
+  // ✅ FIXED: Protected route check - checks both store and localStorage
   useEffect(() => {
-    if (isMounted && !token) {
-      router.push('/login');
-    }
-  }, [isMounted, token, router]);
+    if (isMounted) {
+      const authToken = getAuthToken();
+      console.log('🔍 Dashboard - Token exists:', authToken ? 'Yes' : 'No');
 
-  // Fetch summary history logs
+      if (!authToken) {
+        console.log('❌ No token, redirecting to login');
+        router.push('/login');
+        return;
+      }
+      console.log('✅ Dashboard - User authenticated');
+    }
+  }, [isMounted, router]);
+
+  // ✅ FIXED: Fetch summary - uses token from store or localStorage
   useEffect(() => {
-    if (!token || !isMounted) return;
+    const authToken = getAuthToken();
+    if (!authToken || !isMounted) return;
 
     const fetchSummary = async () => {
       setIsLoading(true);
       setErrorMsg('');
       try {
+        console.log('📡 Fetching dashboard data...');
         const res = await axios.get('/api/dashboard/summary', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         });
         if (res.data?.success) {
+          console.log('✅ Data loaded successfully');
           setRoadmaps(res.data.roadmaps || []);
           setHistoryNotes(res.data.topics || []);
           setBadges(res.data.badges || []);
@@ -155,6 +177,7 @@ export default function DashboardPage() {
         // If token is expired/invalid, clear it and force re-login
         if (err.response?.status === 401) {
           logout();
+          localStorage.removeItem('edlearn_token');
           router.push('/login');
           return;
         }
@@ -166,16 +189,21 @@ export default function DashboardPage() {
 
     fetchSummary();
 
-  }, [token, isMounted]);
+  }, [token, isMounted, router, logout]);
 
-  // Fetch trending in-demand skills (market demand indicators)
+  // ✅ FIXED: Fetch trending - uses token from store or localStorage
   useEffect(() => {
-    if (!token || !isMounted) return;
+    const authToken = getAuthToken();
+    if (!authToken || !isMounted) return;
 
     const fetchTrends = async () => {
       setIsTrendsLoading(true);
       try {
-        const res = await axios.get('/api/market-demand');
+        const res = await axios.get('/api/market-demand', {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
         if (res.data?.success) {
           setTrends(res.data.trends || []);
         }
@@ -189,14 +217,19 @@ export default function DashboardPage() {
     fetchTrends();
   }, [token, isMounted]);
 
-  // Fetch personalized "Did You Know?" facts feed
+  // ✅ FIXED: Fetch facts - uses token from store or localStorage
   useEffect(() => {
-    if (!token || !isMounted) return;
+    const authToken = getAuthToken();
+    if (!authToken || !isMounted) return;
 
     const fetchFacts = async () => {
       setIsFactsLoading(true);
       try {
-        const res = await axios.get('/api/facts');
+        const res = await axios.get('/api/facts', {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
         if (res.data?.success) {
           setFacts(res.data.facts || []);
           setCurrentFactIndex(0);
@@ -229,14 +262,21 @@ export default function DashboardPage() {
 
   // Open an active roadmap in the workspace
   const handleOpenRoadmap = async (targetRoadmap: any) => {
+    const authToken = getAuthToken();
     try {
       await axios.post('/api/user/active-roadmap', { roadmapId: targetRoadmap.id }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
     } catch (err) {
       console.warn('Failed to persist active roadmap in cache:', err);
     }
     setRoadmap(targetRoadmap);
+    if (
+      targetRoadmap.days &&
+      targetRoadmap.days.length > 0
+    ) {
+      selectDay(targetRoadmap.days[0]);
+    }
     router.push('/workspace');
   };
 
@@ -252,9 +292,10 @@ export default function DashboardPage() {
     );
     if (!targetDay) return;
 
+    const authToken = getAuthToken();
     try {
       await axios.post('/api/user/active-roadmap', { roadmapId: parentRoadmap.id }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
     } catch (err) {
       console.warn('Failed to persist active roadmap in cache:', err);
@@ -266,7 +307,13 @@ export default function DashboardPage() {
     router.push('/workspace');
   };
 
-  if (!isMounted || !token) {
+  // ✅ FIXED: Check both store and localStorage for token
+  const authToken =
+    typeof window !== 'undefined'
+      ? token || localStorage.getItem('edlearn_token')
+      : token;
+
+  if (!isMounted || !authToken) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
         <RefreshCw className="h-6 w-6 animate-spin text-blue-600 mr-2" />
@@ -278,10 +325,13 @@ export default function DashboardPage() {
   const currentFact = facts[currentFactIndex] || null;
 
   return (
-    <main className="relative min-h-screen bg-gradient-to-b from-blue-50 via-slate-50 to-slate-50 p-6 md:p-12 pt-32 md:pt-36">
+    <>
+      <Sidebar />
+      <main className="relative min-h-screen bg-gradient-to-b from-blue-50 via-slate-50 to-slate-50 md:ml-60 p-6 md:p-12 pt-24 md:pt-12">
       {/* Visual background accents — anchored to this relatively-positioned
-          <main>, not the viewport, so they no longer overlap the fixed
-          PublicNavbar or sit outside the intended container. */}
+          <main>, not the viewport. On desktop the content is offset by the
+          fixed 240px Sidebar (md:ml-60); on mobile it clears the fixed top
+          bar (pt-24). */}
       <div className="absolute top-10 left-10 w-96 h-96 bg-blue-200/30 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -415,6 +465,25 @@ export default function DashboardPage() {
                 10 minutes (see the rotation useEffect above). Was Study Guide
                 History; that moved to the full-width slot below. */}
             <div className="space-y-6">
+              {/* Vision Board shortcut — jumps to the student's private board
+                  of learning/career goals (see /vision-board). */}
+              <button
+                onClick={() => router.push('/vision-board')}
+                className="w-full text-left bg-gradient-to-br from-blue-600 to-violet-600 rounded-2xl p-6 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 hover:-translate-y-0.5 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2 text-white/90">
+                  <Sparkles className="h-5 w-5" />
+                  <h2 className="text-sm font-semibold">My Vision Board</h2>
+                </div>
+                <p className="text-xs text-white/80 mt-2 leading-relaxed">
+                  Picture the goals behind all this studying — career moves, skills and dreams, all on one board.
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white">
+                  Open Vision Board
+                  <ChevronRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+                </span>
+              </button>
+
               <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-amber-500" />
                 <span>Did You Know?</span>
@@ -609,6 +678,7 @@ export default function DashboardPage() {
 
       {/* Badge detail popup (opens when a badge card is clicked) */}
       <BadgeDetailModal badge={viewBadge} onClose={() => setViewBadge(null)} />
-    </main>
+      </main>
+    </>
   );
 }

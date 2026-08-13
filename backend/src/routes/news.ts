@@ -1,8 +1,21 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
-import { runNewsFetch } from '../services/newsCron';
+import { validateQuery } from '../middleware/validate';
+import { NewsQuerySchema } from '../schemas/content.schemas';
 
 const router = Router();
+
+// Rate limit: 60 requests per 15 minutes per IP
+const newsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests to the news API. Please try again in 15 minutes.' },
+});
+
+router.use(newsLimiter);
 
 const CATEGORIES = ['tech', 'finance', 'world', 'medical', 'science', 'education'];
 
@@ -21,13 +34,21 @@ let lastNewsFetch = 0;
  *               page (default 1), limit (default 20, max 50), search
  * Returns: { data, total, page, limit }
  */
-router.get('/', async (req: Request, res: Response): Promise<any> => {
+router.get('/', validateQuery(NewsQuerySchema), async (req: Request, res: Response): Promise<any> => {
   try {
-    const category = String(req.query.category || '').toLowerCase();
-    const timeframe = String(req.query.timeframe || '').toLowerCase();
-    const search = String(req.query.search || '').trim();
-    const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit), 10) || 20));
+    const q = (req as any).validatedQuery as {
+      category?: string;
+      timeframe?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+
+    const category = (q.category || '').toLowerCase();
+    const timeframe = (q.timeframe || '').toLowerCase();
+    const search = (q.search || '').trim();
+    const page = Math.max(1, q.page || 1);
+    const limit = Math.min(50, Math.max(1, q.limit || 20));
 
     // M6: Trigger background update on page refresh (throttled to once per 5 min)
     if (Date.now() - lastNewsFetch > 5 * 60 * 1000) {

@@ -7,3 +7,17 @@ data:
   NODE_ENV: "production"
   PORT: "5000"
   FRONTEND_URL: "http://edlearn.local" # Adjust based on actual domain
+  GOOGLE_CALLBACK_URL: "http://edlearn.local/api/auth/google/callback" # Adjust based on actual domain
+
+  # --- M2: Media storage (non-sensitive config; credentials live in the Secret) ---
+  STORAGE_PROVIDER: "local" # "local" or "s3" — set to "s3" for real multi-replica deployments
+  S3_BUCKET: ""
+  S3_REGION: "auto"
+  S3_ENDPOINT: ""
+  S3_PUBLIC_URL_BASE: ""
+  S3_FORCE_PATH_STYLE: "false"
+
+  # --- M2: Observability (non-sensitive config) ---
+  LOG_LEVEL: "info"
+  SENTRY_ENVIRONMENT: "production"
+  SENTRY_TRACES_SAMPLE_RATE: "0.1"

@@ -1,8 +1,21 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
-import { runMediaFetch } from '../services/mediaCron';
+import { validateQuery } from '../middleware/validate';
+import { MediaQuerySchema } from '../schemas/content.schemas';
 
 const router = Router();
+
+// Rate limit: 60 requests per 15 minutes per IP
+const mediaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests to the media API. Please try again in 15 minutes.' },
+});
+
+router.use(mediaLimiter);
 
 const CATEGORIES = ['business', 'science', 'history', 'health', 'tech', 'culture'];
 const TYPES = ['video', 'audio'];
@@ -15,13 +28,21 @@ let lastMediaFetch = 0;
  *               limit (default 20, max 50), search
  * Returns: { data, total, page, limit }
  */
-router.get('/', async (req: Request, res: Response): Promise<any> => {
+router.get('/', validateQuery(MediaQuerySchema), async (req: Request, res: Response): Promise<any> => {
   try {
-    const category = String(req.query.category || '').toLowerCase();
-    const type = String(req.query.type || '').toLowerCase();
-    const search = String(req.query.search || '').trim();
-    const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit), 10) || 20));
+    const q = (req as any).validatedQuery as {
+      category?: string;
+      type?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+
+    const category = (q.category || '').toLowerCase();
+    const type = (q.type || '').toLowerCase();
+    const search = (q.search || '').trim();
+    const page = Math.max(1, q.page || 1);
+    const limit = Math.min(50, Math.max(1, q.limit || 20));
 
     // M6: Trigger background update on page refresh (throttled to once per 5 min)
     if (Date.now() - lastMediaFetch > 5 * 60 * 1000) {

@@ -81,7 +81,7 @@ export default function AboutPage() {
                 Our application is split into a robust Next.js client layout supported by Zustand
                 store management and an Express/TypeScript server. Data operations are securely
                 isolated: PostgreSQL tracks users and daily lesson states (via Prisma), while
-                MongoDB/Mongoose handles public doubt threads and scraped job market indicators.
+                MongoDB/Mongoose handles scraped job market indicators.
               </p>
             </div>
           </div>

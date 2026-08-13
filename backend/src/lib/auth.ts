@@ -40,10 +40,10 @@ export function verifyPassword(password: string, storedHash: string): boolean {
 }
 
 /**
- * Generates a signed JWT token for a user session.
+ * Generates a signed JWT access token for a user session (short-lived: 15 minutes).
  */
 export function generateToken(payload: { id: string; email: string }): string {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '15m' });
 }
 
 /**
@@ -55,4 +55,48 @@ export function verifyToken(token: string): { id: string; email: string } | null
   } catch (err) {
     return null;
   }
+}
+
+// ─── Refresh Token helpers ───────────────────────────────────────────────────
+
+/**
+ * Generate a cryptographically secure opaque refresh token (32 random bytes → 64 hex chars).
+ * This raw value is returned to the client; only the hash is stored in the DB.
+ */
+export function generateRefreshToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * SHA-256 hash of a refresh token for safe DB storage.
+ * Never store the raw token — only this hash.
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Generate a UUID "family" identifier used to detect refresh-token reuse attacks.
+ * All tokens in a refresh chain share the same family. If an old (revoked) token
+ * is presented, the entire family is invalidated.
+ */
+export function generateTokenFamily(): string {
+  return crypto.randomUUID();
+}
+
+// ─── OTP helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Generate a 6-digit numeric OTP for password reset.
+ */
+export function generateOtp(): string {
+  const otp = crypto.randomInt(100000, 999999);
+  return String(otp);
+}
+
+/**
+ * Hash an OTP using SHA-256 for safe DB storage.
+ */
+export function hashOtp(otp: string): string {
+  return crypto.createHash('sha256').update(otp).digest('hex');
 }

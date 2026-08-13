@@ -1,0 +1,56 @@
+# M2: Horizontal Pod Autoscaler for the backend Deployment.
+#
+# PREREQUISITE: the cluster must have metrics-server (or another Kubernetes
+# Metrics API provider) installed and healthy — `kubectl top pods` must
+# return data — or this HPA will show <unknown> targets and never scale.
+# This manifest does not install metrics-server; that is a cluster-level
+# concern outside this app's manifests. Verify with:
+#   kubectl get apiservices | grep metrics
+#
+# STORAGE CAVEAT: scaling the backend to N replicas is only correct once
+# STORAGE_PROVIDER=s3 is set (see k8s/configmap.yaml + k8s/secret.example.yaml
+# and backend/src/lib/storage/). With STORAGE_PROVIDER=local, TTS audio
+# written by one replica is invisible to the others, so users would
+# intermittently 404 on their own generated audio depending on which pod
+# served the request. Do not scale the backend beyond 1 effective replica
+# for TTS correctness until S3/R2 storage is configured.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: edlearn
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    # Scale up quickly to absorb bursts (AI generation / TTS requests are bursty).
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    # Scale down cautiously to avoid flapping on noisy metrics.
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120

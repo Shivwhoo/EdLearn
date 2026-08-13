@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { redirectToApp, SsoApp } from '@/lib/ssoHandoff';
-import { timeAgo, youtubeId } from '@/lib/content';
+import Sidebar from '@/components/Layout/Sidebar';
 
 // NOTE: EdMentor / EdCompass haven't confirmed what they can share back
 // with EdLearn yet (no cross-app access/credentials), so there's nothing
@@ -175,7 +175,9 @@ export default function HubPage() {
   const quizTopic = currentDay?.title;
 
   return (
-    <main className="relative min-h-screen bg-gradient-to-b from-blue-50 via-slate-50 to-slate-50 p-6 md:p-12 pt-32">
+    <>
+      <Sidebar />
+      <main className="relative min-h-screen bg-gradient-to-b from-blue-50 via-slate-50 to-slate-50 md:ml-60 p-6 md:p-12 pt-24 md:pt-12">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="border-b border-slate-200 pb-6">
           <h1 className="text-3xl font-extrabold tracking-[-0.02em] text-slate-900">Your Hub</h1>
@@ -356,10 +358,8 @@ export default function HubPage() {
           )}
         </div>
       </div>
-
-      {/* Embedded Player Modal */}
-      {selectedMedia && <PlayerModal item={selectedMedia} onClose={() => setSelectedMedia(null)} />}
-    </main>
+      </main>
+    </>
   );
 }
 

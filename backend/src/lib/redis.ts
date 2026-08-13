@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { logger } from './logger';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -21,25 +22,25 @@ class RedisClient {
           // M1: Reconnect with exponential backoff — up to MAX_RETRIES attempts
           reconnectStrategy: (retries: number): false | Error | number => {
             if (retries >= maxRetries) {
-              console.warn(`Redis: Max reconnect attempts (${maxRetries}) reached. Disabling cache.`);
+              logger.warn({ maxRetries }, 'Redis: Max reconnect attempts reached. Disabling cache.');
               return new Error('Redis max reconnect attempts reached'); // returning Error stops retrying
             }
             const delay = Math.min(retries * 500, 5000);
-            console.warn(`Redis: Reconnecting in ${delay}ms (attempt ${retries + 1}/${maxRetries})…`);
+            logger.warn({ delay, attempt: retries + 1, maxRetries }, 'Redis: Reconnecting…');
             return delay;
           },
         },
       });
 
       this.client.on('error', (err) => {
-        console.warn('Redis Client Error:', err.message || err);
+        logger.warn({ err: err.message || err }, 'Redis Client Error');
         this.isConnected = false;
       });
 
       this.client.on('connect', () => {
         this.retryCount = 0;
         this.isConnected = true;
-        console.log('Successfully connected to Redis Cache server');
+        logger.info('Successfully connected to Redis Cache server');
       });
 
       this.client.on('reconnecting', () => {

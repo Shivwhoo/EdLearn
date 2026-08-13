@@ -1,10 +1,9 @@
-datasource db {
-  provider = "postgresql"
-}
-
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
 }
 
 model User {
@@ -15,11 +14,46 @@ model User {
   updatedAt     DateTime      @updatedAt
   profile       UserProfile?
   roadmaps      Roadmap[]
+  milestones    VisionMilestone[]
   progress      Progress[]
   credits       Int           @default(15)
   subscription  Subscription?
-  workspace Workspace?
-  badges Badge[]
+  workspace     Workspace?
+  badges        Badge[]
+  visions       Vision[]
+  refreshTokens         RefreshToken[]
+  passwordResetTokens   PasswordResetToken[]
+  twoFactorSecret       TwoFactorSecret?
+  dataExportRequests    DataExportRequest[]
+}
+
+
+/// A single card on a student's personal Vision Board — a learning goal,
+/// career ambition or aspiration they want to keep in front of them.
+/// Always scoped to one owner; the API never trusts a client-supplied userId.
+model Vision {
+  id          String   @id @default(uuid())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?  @db.Text
+  category    String   @default("other") // "education" | "career" | "skills" | "achievements" | "growth" | "projects" | "other"
+  imageUrl    String?  @db.Text          // remote https URL or a compact client-downscaled data URL
+  targetDate  DateTime?
+  quote       String?                    // short motivational line shown on the card
+  resourceUrl String?                    // optional link to a course, job posting, article...
+  status      String   @default("not_started") // "not_started" | "in_progress" | "achieved"
+  achievedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  milestones  VisionMilestone[]
+
+  @@index([userId])
+  @@index([userId, status])
 }
 
 model Badge {
@@ -34,84 +68,110 @@ model Badge {
   imageUrl    String?
 
   earnedAt    DateTime @default(now())
+
+}
+
+/// A single step/milestone on a Vision Board entry's personal roadmap.
+/// Stored in the database — NOT localStorage. Scoped to the owner via userId;
+/// the API never trusts a client-supplied userId.
+model VisionMilestone {
+  id          String    @id @default(uuid())
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  visionId    String?                           // optional link to a specific Vision card
+  vision      Vision?   @relation(fields: [visionId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String    @default("")
+  targetDate  DateTime?
+  sortOrder   Int       @default(0)             // display order within the roadmap
+  completed   Boolean   @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([visionId])
 }
 
 model UserProfile {
   id            String   @id @default(uuid())
   userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   fullName      String?
   careerGoal    String?
   currentSkills String[]
-  availableTime Int      // in minutes
-  difficulty    String   @default("Intermediate") // Beginner, Intermediate, Advanced
+  availableTime Int
+  difficulty    String   @default("Intermediate")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Roadmap {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  deadline    DateTime
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  deadline     DateTime
   isAchievable Boolean  @default(true)
-  days        Day[]
-  createdAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  days         Day[]
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Day {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   roadmapId String
-  roadmap   Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   dayNumber Int
   title     String
-  duration  Int      // in minutes
+  duration  Int
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   topics    Topic[]
 }
 
 model Topic {
   id          String     @id @default(uuid())
   dayId       String
-  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
   title       String
-  mode        Int        // 1 to 6
-  notesHtml   String     @db.Text
+  mode        Int
+  notesHtml   String
   audioUrl    String?
-  audioTiming Json?      // For word highlighting word/time map
-  citations   Citation[]
+  audioTiming Json?
   completed   Boolean    @default(false)
   createdAt   DateTime   @default(now())
+  citations   Citation[]
+  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
 }
 
 model Citation {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   topicId   String
-  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
   label     String
-  rawText   String   @db.Text
+  rawText   String
   sourceUrl String?
+  topic     Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
 }
 
 model Progress {
   id          String   @id @default(uuid())
 
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   roadmapId   String
   dayId       String
 
   score       Int      @default(100)
   completedAt DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stripeId   String   @unique
-  status     String
-  tier       String   @default("FREE")
-  expiresAt  DateTime
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  stripeId  String   @unique
+  status    String
+  tier      String   @default("FREE")
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model NewsArticle {
@@ -186,4 +246,71 @@ model Workspace {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ─── Security & Auth models ───────────────────────────────────────────────────
+
+/// Refresh token record for rotation-based session management.
+/// Only the SHA-256 hash of the raw token is stored here — never the raw value.
+/// Tokens are grouped by `family`; any reuse of a revoked token in a family
+/// revokes the ENTIRE family (theft detection).
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique  // SHA-256 hash of the raw opaque token
+  family    String             // UUID family identifier for reuse detection
+  expiresAt DateTime
+  revokedAt DateTime?          // set when rotated or explicitly revoked
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+}
+
+/// One-time OTP record for the forgot-password flow.
+/// The OTP is hashed (SHA-256) before storage. Expires in 10 minutes and is
+/// marked `used` after a successful password reset so it cannot be replayed.
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  otpHash   String             // SHA-256 of the 6-digit OTP
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// TOTP secret for opt-in 2FA.
+/// The secret itself should be treated as sensitive (consider encrypting at
+/// rest via a KMS key in production). Backup codes are stored as SHA-256 hashes.
+/// `enabled` is only set to true after the user confirms a valid TOTP code.
+model TwoFactorSecret {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  secret      String              // TOTP base32 secret (store encrypted in prod)
+  backupCodes String[]            // SHA-256 hashes of one-time recovery codes
+  enabled     Boolean   @default(false)
+  verifiedAt  DateTime?           // when the user first confirmed a valid code
+
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Audit trail for GDPR data-export requests.
+model DataExportRequest {
+  id          String    @id @default(uuid())
+  userId      String
+  status      String    @default("pending")  // "pending" | "ready" | "downloaded"
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

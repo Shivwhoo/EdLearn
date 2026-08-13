@@ -1,17 +1,17 @@
 import * as googleTTS from 'google-tts-api';
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
+import crypto from 'crypto';
+import { getStorageProvider } from './storage/storage.service';
 
-// Files are written here and served back out via a static route mounted at
-// /api/tts/audio in index.ts (that path is deliberately under /api so the
-// existing frontend rewrite in next.config.ts, which proxies "/api/:path*"
-// to the backend, picks it up automatically — no frontend config changes).
-const AUDIO_DIR = path.join(__dirname, '../../tts-audio');
-
-if (!fs.existsSync(AUDIO_DIR)) {
-  fs.mkdirSync(AUDIO_DIR, { recursive: true });
-}
+// M2: Audio bytes go through the storage abstraction (backend/src/lib/storage)
+// instead of talking to fs directly. STORAGE_PROVIDER=local (default) keeps
+// the exact prior behavior — files land in backend/tts-audio/, served by the
+// express.static route mounted at /api/tts/audio in index.ts (deliberately
+// under /api so the existing frontend rewrite in next.config.ts, which
+// proxies "/api/:path*" to the backend, picks it up automatically — no
+// frontend config changes). STORAGE_PROVIDER=s3 durably persists the same
+// files to S3/R2 instead, which is required once the backend runs with more
+// than one replica (local disk is per-pod and not shared).
 
 /**
  * Generates a single MP3 file for the given text using google-tts-api,
@@ -65,37 +65,66 @@ export async function generateSpeechFile(text: string, topicId: string): Promise
 
   const combined = Buffer.concat(buffers);
   const filename = `${topicId}.mp3`;
-  const filePath = path.join(AUDIO_DIR, filename);
-  fs.writeFileSync(filePath, combined);
 
-  return `/api/tts/audio/${filename}`;
+  try {
+    return await getStorageProvider().upload({ buffer: combined, key: filename, contentType: 'audio/mpeg' });
+  } catch (err) {
+    throw new Error(
+      `Failed to persist generated speech audio: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }
 
 /**
- * Generates an MP3 file for a podcast script by stitching alternating 
- * voices together based on the speaker role.
- * Host gets standard 'en' (en-US), Expert gets 'en-GB' for contrast.
+ * Generates (or reuses) an MP3 for a two-host podcast script by stitching
+ * alternating voices together based on the speaker role. The Host is voiced
+ * with a US English accent ('en') and the Expert with a UK accent ('en-GB')
+ * so the two speakers are audibly distinct.
+ *
+ * The output filename is derived from a content hash of the (cleaned) script,
+ * which gives us free, correct caching: an identical script reuses the exact
+ * same file (no re-synthesis, no extra Google TTS calls), while any change to
+ * the script produces a brand-new file — so we never serve stale audio for
+ * updated content. This is intentionally decoupled from the database: the
+ * caller may or may not have a real Topic row, and audio must work either way.
  */
 export async function generatePodcastAudio(
-  lines: { speaker: string; line: string }[],
-  topicId: string
+  lines: { speaker: string; line: string }[]
 ): Promise<string> {
-  const buffers: Buffer[] = [];
-
-  for (const turn of lines) {
-    const plainText = turn.line
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/[*_`#~>]+/g, ' ')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  const clean = (s: string) =>
+    s
+      .replace(/<[^>]+>/g, ' ')              // HTML tags
+      .replace(/[*_`#~>]+/g, ' ')            // Markdown punctuation
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Markdown links → label only
       .replace(/\s+/g, ' ')
       .trim();
-      
-    if (!plainText) continue;
 
+  // Normalise + drop empty turns before synthesis.
+  const turns = (lines || [])
+    .map((t) => ({ speaker: String(t?.speaker || 'Host'), line: clean(String(t?.line || '')) }))
+    .filter((t) => t.line.length > 0);
+
+  if (turns.length === 0) {
+    throw new Error('Podcast script contained no speakable lines.');
+  }
+
+  // Content-addressed filename → identical scripts reuse the same audio file.
+  const hash = crypto.createHash('sha1').update(JSON.stringify(turns)).digest('hex').slice(0, 16);
+  const filename = `podcast_${hash}.mp3`;
+  const storage = getStorageProvider();
+
+  // Cache hit: the file for this exact script already exists — serve it as-is.
+  if (await storage.exists(filename)) {
+    return storage.urlFor(filename);
+  }
+
+  const buffers: Buffer[] = [];
+  for (const turn of turns) {
     const lang = turn.speaker.toLowerCase() === 'host' ? 'en' : 'en-GB';
-    
-    // Some lines might be over 200 chars, so use getAllAudioUrls
-    const chunks = await (googleTTS as any).getAllAudioUrls(plainText, {
+
+    // Google's TTS endpoint caps each request near 200 chars, so
+    // getAllAudioUrls() splits a long line into multiple chunk URLs.
+    const chunks = await (googleTTS as any).getAllAudioUrls(turn.line, {
       lang,
       slow: false,
       host: 'https://translate.google.com',
@@ -105,15 +134,14 @@ export async function generatePodcastAudio(
       const response = await axios.get(chunk.url, { responseType: 'arraybuffer' });
       buffers.push(Buffer.from(response.data));
     }
-    
-    // Optionally add a slight pause between speakers (silence buffer), but 
-    // for simple concatenation, TTS usually has enough padding natively.
   }
 
   const combined = Buffer.concat(buffers);
-  const filename = `${topicId}_podcast.mp3`;
-  const filePath = path.join(AUDIO_DIR, filename);
-  fs.writeFileSync(filePath, combined);
-
-  return `/api/tts/audio/${filename}`;
+  try {
+    return await storage.upload({ buffer: combined, key: filename, contentType: 'audio/mpeg' });
+  } catch (err) {
+    throw new Error(
+      `Failed to persist generated podcast audio: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }

@@ -321,7 +321,7 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
         {generatedContent.script ? (
           <div className="pt-4 pb-20">
             <PodcastPlayer
-              topicId={currentDay?.id || 'demo'}
+              topicId={generatedContent.topicId || currentDay?.id || 'demo'}
               script={generatedContent.script}
               audioUrl={generatedContent.audioUrl}
             />

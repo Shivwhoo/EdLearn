@@ -2,27 +2,22 @@ import { create } from 'zustand';
 import axios from 'axios';
 
 export interface UserProfile {
-  fullName: string;
-  careerGoal: string;
-  currentSkills: string[];
-  availableTime: number;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-}
-
-export interface DayTopic {
-  id: string;
-  title: string;
-  mode: number;
-  createdAt: string;
+  id?: string;
+  fullName?: string;
+  email?: string;
+  careerGoal?: string;
+  difficulty?: string;
+  currentSkills?: string[];
+  availableTime?: number;
 }
 
 export interface Day {
   id: string;
   dayNumber: number;
   title: string;
-  duration: number;
-  topics?: DayTopic[];
+  topics: any[];
 }
+
 
 export interface Roadmap {
   id: string;
@@ -47,43 +42,68 @@ export interface Badge {
   earnedAt: string;
 }
 
+function getInitialToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const token = localStorage.getItem('edlearn_token');
+  // Restore the axios default Authorization header on page refresh
+  // so all axios calls (including /api/generate) are authenticated.
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+  return token;
+}
+
+function getInitialUser(): any | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem('edlearn_user');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function getInitialCompletedDays(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  const raw = localStorage.getItem('edlearn_completed_days');
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 export interface WorkspaceState {
   // Auth State
+
   token: string | null;
-  user: UserSession | null;
-  
-  // User Onboarding and Roadmap Data
-  userProfile: UserProfile | null;
+  user: any | null;
+
+  // Workspace state
   roadmap: Roadmap | null;
   currentDay: Day | null;
   currentTopicTitle: string;
   currentTopicId: string | null;
-  
-  // Pedagogical Model generation state
-  activeMode: number; // 1 to 7
-  generatedContent: any | null; 
+  activeMode: number;
+  userProfile: UserProfile | null;
+  generatedContent: any | null;
   isLoadingContent: boolean;
-  
-  // Mode 2: Socratic tracking parameters
-  socraticRetryCount: number;
-  socraticAnsweredCorrectly: boolean | null;
-  socraticAttempts: string[];
-  
-  // Mode 3: Simplifier Keystone lock parameters
-  simplifierUnlocked: boolean;
-  simplifierAnswers: { [key: number]: number }; // questionId -> optionIndex
-  
-  // Bottom dock Audio & Highlighting parameters
+  restoringSession: boolean;
+
+  // Audio / TTS state
   isPlaying: boolean;
   activeSentenceIndex: number;
   speechRate: number;
   speechPitch: number;
   focusMode: boolean;
 
-  // History & Versioning parameters
+  // Notes version history
   notesHistory: any[];
   activeVersionId: string | null;
-  restoringSession: boolean;
+
 
   // Scroll-based completion tracking
   completedDays: Set<string>;
@@ -92,9 +112,20 @@ export interface WorkspaceState {
   badges: Badge[];
   newBadge: Badge | null; // set when a badge is freshly earned, drives the celebration modal
 
+  // Socratic state
+  socraticRetryCount: number;
+  socraticAnsweredCorrectly: boolean | null;
+  socraticAttempts: string[];
+
+  // Simplifier state
+  simplifierUnlocked: boolean;
+  simplifierAnswers: { [key: number]: number };
+
   // Actions
   login: (token: string, user: UserSession) => void;
   logout: () => void;
+  setToken: (token: string) => void;
+  setUser: (user: any) => void;
   fetchCurrentUser: () => Promise<void>;
   setUserProfile: (profile: UserProfile) => void;
   setRoadmap: (roadmap: Roadmap) => void;
@@ -103,7 +134,7 @@ export interface WorkspaceState {
   setActiveMode: (mode: number) => void;
   setGeneratedContent: (content: any) => void;
   setLoadingContent: (isLoading: boolean) => void;
-  
+
   // History Actions
   fetchNotesHistory: (dayId: string) => Promise<void>;
   setActiveVersion: (versionId: string) => void;
@@ -117,51 +148,19 @@ export interface WorkspaceState {
   resetSocratic: () => void;
   setSocraticAnswered: (correct: boolean | null) => void;
   addSocraticAttempt: (msg: string) => void;
-  
+
   // Simplifier Actions
   setSimplifierAnswer: (questionId: number, optionIndex: number) => void;
   checkSimplifierUnlock: (correctIndices: { [key: number]: number }) => void;
   resetSimplifier: () => void;
-  
+
   // Audio Actions
+
   setPlaying: (playing: boolean) => void;
   setActiveSentenceIndex: (index: number) => void;
   setSpeechRate: (rate: number) => void;
   setSpeechPitch: (pitch: number) => void;
   toggleFocusMode: () => void;
-}
-
-const getInitialToken = () => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('edlearn_token') || null;
-  }
-  return null;
-};
-
-const getInitialCompletedDays = (): Set<string> => {
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('edlearn_completed_days');
-      if (stored) return new Set(JSON.parse(stored));
-    } catch {}
-  }
-  return new Set();
-};
-
-const getInitialUser = () => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('edlearn_user');
-    return stored ? JSON.parse(stored) : null;
-  }
-  return null;
-};
-
-// Initialize default axios headers if token exists
-if (typeof window !== 'undefined') {
-  const token = localStorage.getItem('edlearn_token');
-  if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  }
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -208,17 +207,27 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       localStorage.removeItem('edlearn_completed_days');
       delete axios.defaults.headers.common['Authorization'];
     }
-    set({ 
-      token: null, 
-      user: null, 
-      roadmap: null, 
-      currentDay: null, 
+    set({
+      token: null,
+      user: null,
+      roadmap: null,
+      currentDay: null,
+
       userProfile: null,
+
       generatedContent: null,
+      isLoadingContent: false,
+
+      // Audio / TTS defaults
       isPlaying: false,
       activeSentenceIndex: -1,
+      speechRate: 1.0,
+      focusMode: false,
+
+      // Notes version history defaults
       notesHistory: [],
       activeVersionId: null,
+
       restoringSession: false,
       completedDays: new Set(),
       badges: [],
@@ -226,197 +235,332 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     });
   },
 
+  setToken: (token) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('edlearn_token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+    set({ token });
+  },
+
+  setUser: (user) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('edlearn_user', JSON.stringify(user));
+    }
+    set({ user });
+  },
+
   fetchCurrentUser: async () => {
-    const { token } = get();
+    const {
+      token,
+      setUser,
+      setUserProfile,
+      setRoadmap,
+    } = get();
+
     if (!token) {
       set({ restoringSession: false });
       return;
     }
-    set({ restoringSession: true });
+
     try {
-      const res = await axios.get('/api/auth/me');
-      if (res.data?.success) {
-        const { user } = res.data;
-        set({
-          user: { id: user.id, email: user.email, fullName: user.fullName },
-          userProfile: user.profile || null
-        });
+      const response = await axios.get('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        // Hydrate completion + badges from the database (source of truth),
-        // merging any day IDs already tracked locally so nothing regresses.
-        const serverCompleted: string[] = user.completedDayIds || [];
-        set((state) => {
-          const merged = new Set(state.completedDays);
-          serverCompleted.forEach((id) => merged.add(id));
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('edlearn_completed_days', JSON.stringify([...merged]));
+      if (response.data?.success) {
+        const userData = response.data.user;
+
+        setUser(userData);
+
+        // Restore profile from the backend response
+        if (userData.profile) {
+          setUserProfile(userData.profile);
+        }
+
+        // Restore active roadmap if the backend returned one
+        if (userData.activeRoadmap) {
+          setRoadmap(userData.activeRoadmap);
+
+          // Auto-select first day if none is selected
+          const { currentDay } = get();
+          if (!currentDay && userData.activeRoadmap.days?.length > 0) {
+            // Use set directly instead of selectDay to avoid clearing content
+            set({ currentDay: userData.activeRoadmap.days[0] });
           }
-          return { completedDays: merged, badges: user.badges || [] };
-        });
-
-        // Restore active cached roadmap if available
-        if (user.activeRoadmap) {
-          const r = user.activeRoadmap;
-          set({
-            roadmap: r,
-            currentDay: r.days[0] || null,
-            currentTopicTitle: r.days[0]?.title || ''
-          });
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch user context:', err);
-      get().logout();
+    } catch (error) {
+      // A 401 here means the stored token is stale/expired or its user no
+      // longer exists (e.g. after a DB reset). Clear the dead session so the
+      // app cleanly shows logged-out instead of re-sending the same bad token
+      // — and spamming this AxiosError — on every page load. Any other error
+      // (network blip, backend down) keeps the token so a transient failure
+      // doesn't log the user out.
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('edlearn_token');
+          localStorage.removeItem('edlearn_user');
+          delete axios.defaults.headers.common['Authorization'];
+        }
+        set({ token: null, user: null });
+      } else {
+        console.error('Failed to fetch user:', error);
+      }
     } finally {
       set({ restoringSession: false });
     }
   },
 
-  setUserProfile: (profile) => set({ userProfile: profile }),
-  setRoadmap: (roadmap) => set({ roadmap, currentDay: roadmap.days[0] || null, currentTopicTitle: roadmap.days[0]?.title || '' }),
-  selectDay: (day) => set({ 
-    currentDay: day, 
-    currentTopicTitle: day.title,
-    generatedContent: null, 
-    socraticRetryCount: 0,
-    socraticAnsweredCorrectly: null,
-    socraticAttempts: [],
-    simplifierUnlocked: false,
-    simplifierAnswers: {},
-    activeSentenceIndex: -1,
-    isPlaying: false,
-    notesHistory: [],
-    activeVersionId: null
-  }),
-  setTopicTitle: (title) => set({ currentTopicTitle: title }),
-  setActiveMode: (mode) => set({ 
-    activeMode: mode,
-    socraticRetryCount: 0,
-    socraticAnsweredCorrectly: null,
-    socraticAttempts: [],
-    simplifierUnlocked: false,
-    simplifierAnswers: {},
-    activeSentenceIndex: -1,
-    isPlaying: false
-  }),
-  setGeneratedContent: (content) => set({ generatedContent: content }),
+  setUserProfile: (profile) =>
+    set({ userProfile: profile }),
 
-  fetchNotesHistory: async (dayId) => {
+  setRoadmap: (roadmap) =>
+    set({ roadmap }),
+
+  selectDay: (day) =>
+    set({
+      currentDay: day,
+      generatedContent: null,
+      notesHistory: [],
+      activeVersionId: null,
+      activeMode: 1,
+    }),
+
+  setTopicTitle: (title) =>
+    set({ currentTopicTitle: title }),
+
+  setActiveMode: (mode) =>
+    set({ activeMode: mode }),
+
+  setGeneratedContent: (content) =>
+    set({ generatedContent: content }),
+
+  fetchNotesHistory: async (dayId: string) => {
+    const { token } = get();
+
+    if (!token || !dayId) return;
+
     try {
-      const res = await axios.get(`/api/topic?dayId=${dayId}`);
-      if (res.data?.success) {
-        const topics = res.data.topics || [];
+      set({ isLoadingContent: true });
+
+      const response = await axios.get("/api/topic", {
+        params: {
+          dayId,
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.data?.success) {
+        const topics = response.data.topics || [];
+
+        // Store full history for version switching
         set({ notesHistory: topics });
-        
+
         if (topics.length > 0) {
-          // Parse and load the most recent version
-          const mostRecent = topics[0];
+          const latestTopic = topics[0]; // Already sorted desc by createdAt
+          set({ activeVersionId: latestTopic.id });
+
           try {
-            const parsed = JSON.parse(mostRecent.notesHtml);
-            set({ 
-              generatedContent: parsed,
-              activeVersionId: mostRecent.id 
-            });
-          } catch (err) {
-            console.error('Failed to parse active version JSON:', err);
-            set({ generatedContent: null, activeVersionId: null });
+            const parsed = typeof latestTopic.notesHtml === 'string'
+              ? JSON.parse(latestTopic.notesHtml)
+              : latestTopic.notesHtml;
+            set({ generatedContent: parsed });
+          } catch (parseErr) {
+            console.error('Failed to parse topic notesHtml:', parseErr);
+            set({ generatedContent: null });
           }
         } else {
-          set({ generatedContent: null, activeVersionId: null });
+          set({
+            generatedContent: null,
+            activeVersionId: null,
+          });
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch topics history:', err);
-      set({ notesHistory: [], activeVersionId: null, generatedContent: null });
+    } catch (error) {
+      console.error('fetchNotesHistory error:', error);
+      set({ generatedContent: null, notesHistory: [], activeVersionId: null });
+    } finally {
+      set({ isLoadingContent: false });
     }
   },
 
   setActiveVersion: (versionId) => {
     const { notesHistory } = get();
-    const target = notesHistory.find((t) => t.id === versionId);
-    if (target) {
-      try {
-        const parsed = JSON.parse(target.notesHtml);
-        set({ 
-          generatedContent: parsed,
-          activeVersionId: target.id 
-        });
-      } catch (err) {
-        console.error('Failed to parse selected version JSON:', err);
-      }
+    const version = notesHistory.find((item: any) => item.id === versionId);
+
+    if (!version) {
+      set({ activeVersionId: versionId });
+      return;
+    }
+
+    try {
+      const parsed = typeof version.notesHtml === 'string'
+        ? JSON.parse(version.notesHtml)
+        : version.notesHtml;
+      set({ activeVersionId: versionId, generatedContent: parsed });
+    } catch (parseErr) {
+      console.error('Failed to parse version notesHtml:', parseErr);
+      set({ activeVersionId: versionId });
     }
   },
-  setLoadingContent: (isLoading) => set({ isLoadingContent: isLoading }),
+
+  setLoadingContent: (isLoading) =>
+    set({ isLoadingContent: isLoading }),
 
   markDayCompleted: async (dayId) => {
     const alreadyLocal = get().completedDays.has(dayId);
 
-    // Optimistic local update so the UI (green check + toast) reacts instantly,
-    // even before the network round-trip resolves.
     set((state) => {
       const next = new Set(state.completedDays);
       next.add(dayId);
+
       if (typeof window !== 'undefined') {
-        localStorage.setItem('edlearn_completed_days', JSON.stringify([...next]));
+        localStorage.setItem(
+          'edlearn_completed_days',
+          JSON.stringify([...next])
+        );
       }
+
       return { completedDays: next };
     });
 
-    // Persist to the backend (Progress table). This is the source of truth and
-    // is what awards the course-completion badge once every day is done.
     try {
       const res = await axios.post('/api/progress/complete', { dayId });
+
       if (res.data?.success) {
-        const serverCompleted: string[] = res.data.completedDayIds || [];
+        const serverCompleted: string[] =
+          res.data.completedDayIds || [];
+
         set((state) => {
           const reconciled = new Set(state.completedDays);
-          serverCompleted.forEach((id) => reconciled.add(id));
+
+          serverCompleted.forEach((id) =>
+            reconciled.add(id)
+          );
+
           if (typeof window !== 'undefined') {
-            localStorage.setItem('edlearn_completed_days', JSON.stringify([...reconciled]));
+            localStorage.setItem(
+              'edlearn_completed_days',
+              JSON.stringify([...reconciled])
+            );
           }
+
           const earned = res.data.newlyEarnedBadge;
+
           return {
             completedDays: reconciled,
             ...(earned
-              ? { badges: [earned, ...state.badges], newBadge: earned }
+              ? {
+                badges: [
+                  earned,
+                  ...state.badges,
+                ],
+                newBadge: earned,
+              }
               : {}),
           };
         });
       }
     } catch (err) {
-      // Network/DB failure shouldn't wipe the optimistic local state — the day
-      // stays marked locally and will re-sync from the server on next load.
       if (!alreadyLocal) {
-        console.warn('Failed to persist day completion to backend:', err);
+        console.warn(
+          'Failed to persist day completion:',
+          err
+        );
       }
     }
   },
 
-  dismissNewBadge: () => set({ newBadge: null }),
+  dismissNewBadge: () =>
+    set({ newBadge: null }),
 
-  incrementSocraticRetry: () => set((state) => ({ socraticRetryCount: state.socraticRetryCount + 1 })),
-  resetSocratic: () => set({ socraticRetryCount: 0, socraticAnsweredCorrectly: null, socraticAttempts: [] }),
-  setSocraticAnswered: (correct) => set({ socraticAnsweredCorrectly: correct }),
-  addSocraticAttempt: (msg) => set((state) => ({ socraticAttempts: [...state.socraticAttempts, msg] })),
-  
-  setSimplifierAnswer: (qId, optionIdx) => set((state) => ({
-    simplifierAnswers: { ...state.simplifierAnswers, [qId]: optionIdx }
-  })),
-  checkSimplifierUnlock: (correctIndices) => set((state) => {
-    let unlocked = true;
-    Object.keys(correctIndices).forEach((qIdStr) => {
-      const qId = parseInt(qIdStr, 10);
-      if (state.simplifierAnswers[qId] !== correctIndices[qId]) {
-        unlocked = false;
-      }
-    });
-    return { simplifierUnlocked: unlocked };
-  }),
-  resetSimplifier: () => set({ simplifierUnlocked: false, simplifierAnswers: {} }),
-  
-  setPlaying: (playing) => set({ isPlaying: playing }),
-  setActiveSentenceIndex: (index) => set({ activeSentenceIndex: index }),
-  setSpeechRate: (rate) => set({ speechRate: rate }),
-  setSpeechPitch: (pitch) => set({ speechPitch: pitch }),
-  toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
+  incrementSocraticRetry: () =>
+    set((state) => ({
+      socraticRetryCount:
+        state.socraticRetryCount + 1,
+    })),
+
+  resetSocratic: () =>
+    set({
+      socraticRetryCount: 0,
+      socraticAnsweredCorrectly: null,
+      socraticAttempts: [],
+    }),
+
+  setSocraticAnswered: (correct) =>
+    set({
+      socraticAnsweredCorrectly: correct,
+    }),
+
+  addSocraticAttempt: (msg) =>
+    set((state) => ({
+      socraticAttempts: [
+        ...state.socraticAttempts,
+        msg,
+      ],
+    })),
+
+  setSimplifierAnswer: (qId, optionIdx) =>
+    set((state) => ({
+      simplifierAnswers: {
+        ...state.simplifierAnswers,
+        [qId]: optionIdx,
+      },
+    })),
+
+  checkSimplifierUnlock: (correctIndices) =>
+    set((state) => {
+      let unlocked = true;
+
+      Object.keys(correctIndices).forEach((qIdStr) => {
+        const qId = Number(qIdStr);
+
+        if (
+          state.simplifierAnswers[qId] !==
+          correctIndices[qId]
+        ) {
+          unlocked = false;
+        }
+      });
+
+      return {
+        simplifierUnlocked: unlocked,
+      };
+    }),
+
+  resetSimplifier: () =>
+    set({
+      simplifierUnlocked: false,
+      simplifierAnswers: {},
+    }),
+
+  setPlaying: (playing) =>
+    set({
+      isPlaying: playing,
+    }),
+
+  setActiveSentenceIndex: (index) =>
+    set({
+      activeSentenceIndex: index,
+    }),
+
+  setSpeechRate: (rate) =>
+    set({
+      speechRate: rate,
+    }),
+
+  setSpeechPitch: (pitch) =>
+    set({
+      speechPitch: pitch,
+    }),
+
+  toggleFocusMode: () =>
+    set((state) => ({
+      focusMode: !state.focusMode,
+    })),
 }));

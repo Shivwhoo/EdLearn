@@ -9,7 +9,7 @@ import axios from 'axios';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { token, login } = useWorkspaceStore();
+  const { token, setToken, setUser, fetchCurrentUser } = useWorkspaceStore();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -48,7 +48,9 @@ export default function SignupPage() {
 
       if (response.data?.success) {
         // Authenticate
-        login(response.data.token, response.data.user);
+        setToken(response.data.token);
+        setUser(response.data.user);
+        await fetchCurrentUser();
         // Next.js will auto-redirect in useEffect
       } else {
         setErrorMsg('Registration failed. Check backend configuration.');
