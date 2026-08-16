@@ -48,12 +48,26 @@ services:
       - redis
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Baked into .next/routes-manifest.json at `next build` time (see
+        # frontend/Dockerfile) — this is what actually controls the "/api/*"
+        # rewrite destination in the production standalone server, not a
+        # runtime env var alone.
+        BACKEND_URL: http://backend:5000
     container_name: edlearn-frontend
     ports:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      # Server-side only (next.config.ts rewrites "/api/*" here). Inside the
+      # frontend container, "localhost" means the frontend container itself,
+      # not the backend — must use the Docker network service name. Kept
+      # alongside the build arg above for any runtime code paths that read
+      # process.env.BACKEND_URL directly.
+      - BACKEND_URL=http://backend:5000
     depends_on:
       - backend
 

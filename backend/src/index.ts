@@ -79,33 +79,79 @@ app.use('/api/tts/audio', express.static(path.join(__dirname, '../tts-audio')));
 
 // Google OAuth Routes
 app.get('/api/auth/google', (req, res, next) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  // Must match the exact condition in auth/google.ts that gates strategy
+  // registration (clientID && clientSecret && callbackURL). This route used
+  // to only check CLIENT_ID/CLIENT_SECRET, so a missing GOOGLE_CALLBACK_URL
+  // would leave the 'google' strategy unregistered and passport.authenticate
+  // would throw synchronously ("Unknown authentication strategy \"google\""),
+  // crashing to Express's generic Internal Server Error instead of a clean
+  // diagnostic response.
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_CALLBACK_URL) {
+    console.error(
+      '❌ Google OAuth is not configured — missing env var(s):',
+      !process.env.GOOGLE_CLIENT_ID ? 'GOOGLE_CLIENT_ID' : '',
+      !process.env.GOOGLE_CLIENT_SECRET ? 'GOOGLE_CLIENT_SECRET' : '',
+      !process.env.GOOGLE_CALLBACK_URL ? 'GOOGLE_CALLBACK_URL' : ''
+    );
     return res.status(500).json({ error: 'Google OAuth is not configured' });
   }
   passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
 
-app.get(
-  '/api/auth/google/callback',
-  passport.authenticate('google', { session: false }),
-  (req, res) => {
+app.get('/api/auth/google/callback', (req, res, next) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  passport.authenticate('google', { session: false }, (err: any, user: any, info: any) => {
+    if (err) {
+      // Strategy-level errors: DB/Prisma failures during user lookup/create,
+      // or an InternalOAuthError from passport-oauth2 when Google's token
+      // endpoint itself rejects the exchange (invalid_client, redirect_uri
+      // mismatch, etc.). Break these apart instead of a bare err.message so
+      // the real cause is visible instead of collapsing into one bucket.
+      // Never logs secrets, codes, or tokens — only error classification.
+      const diag: Record<string, unknown> = { name: err.name, message: err.message };
+      if (err.code) diag.prismaErrorCode = err.code; // e.g. P1001, P2002, P2025
+      if (err.oauthError) {
+        const oe: any = err.oauthError;
+        diag.googleHttpStatus = oe.statusCode;
+        const raw = typeof oe.data === 'string' ? oe.data : undefined;
+        if (raw) {
+          try {
+            const body = JSON.parse(raw);
+            diag.googleError = body.error; // e.g. "invalid_client", "redirect_uri_mismatch"
+            diag.googleErrorDescription = body.error_description;
+          } catch {
+            // Non-JSON body from Google — skip rather than log raw content.
+          }
+        }
+      }
+      console.error('❌ Google OAuth strategy error:', diag);
+      return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
+    }
+    if (!user) {
+      // Authentication failed without a hard error — e.g. user denied
+      // consent (access_denied) or Passport rejected the callback params.
+      console.error('❌ Google OAuth failed — no user returned. info:', {
+        message: info?.message,
+        name: info?.name,
+      });
+      return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
+    }
+
     try {
-      const { token } = (req.user as any);
+      const { token } = user;
       console.log('✅ Token generated:', token ? 'Yes' : 'No');
 
-      // ✅ This should redirect to your frontend callback
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const redirectUrl = `${frontendUrl}/auth/callback?token=${token}`;
       console.log('🔀 Redirecting to:', redirectUrl);
 
       res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('❌ Callback error:', error);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    } catch (callbackError) {
+      console.error('❌ Callback error:', callbackError);
       res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
     }
-  }
-);
+  })(req, res, next);
+});
 
 // 1. Health Probe
 app.get('/api/health', (req, res) => {
