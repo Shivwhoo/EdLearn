@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
 import { validateQuery } from '../middleware/validate';
 import { MediaQuerySchema } from '../schemas/content.schemas';
+import { runMediaFetch } from '../services/mediaCron';
 
 const router = Router();
 
