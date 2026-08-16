@@ -8,8 +8,12 @@ import {
   LayoutDashboard,
   Compass,
   GraduationCap,
+  Library,
   LogOut,
   Menu,
+  MonitorPlay,
+  Newspaper,
+  NotebookPen,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -37,6 +41,10 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/vision-board', label: 'Vision Board', icon: Sparkles },
   { href: '/hub', label: 'Hub', icon: Compass },
+  { href: '/workspace', label: 'Study Workspace', icon: NotebookPen },
+  { href: '/media', label: 'Media', icon: MonitorPlay },
+  { href: '/books', label: 'Books', icon: Library },
+  { href: '/news', label: 'News', icon: Newspaper },
 ];
 
 /** The inner sidebar content, shared by the desktop rail and mobile drawer. */
