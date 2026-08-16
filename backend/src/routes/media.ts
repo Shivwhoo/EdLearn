@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
 import { validateQuery } from '../middleware/validate';
 import { MediaQuerySchema } from '../schemas/content.schemas';
+import { runMediaFetch } from '../services/mediaCron';
 
 const router = Router();
 
@@ -47,7 +48,7 @@ router.get('/', validateQuery(MediaQuerySchema), async (req: Request, res: Respo
     // M6: Trigger background update on page refresh (throttled to once per 5 min)
     if (Date.now() - lastMediaFetch > 5 * 60 * 1000) {
       lastMediaFetch = Date.now();
-      runMediaFetch().catch((err) => console.error('[api/media] Background update error:', err));
+      runMediaFetch().catch((err: any) => console.error('[api/media] Background update error:', err));
     }
 
     const where: any = {};

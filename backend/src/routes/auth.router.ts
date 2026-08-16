@@ -466,6 +466,8 @@ router.get('/me', authenticate, async (req: Request, res: Response): Promise<any
         completedDayIds: completedProgress.map((p) => p.dayId),
         badges: userBadges,
         twoFactorEnabled: user.twoFactorSecret?.enabled ?? false,
+        xp: user.xp,
+        streakCount: user.streakCount,
       },
     });
   } catch (error) {

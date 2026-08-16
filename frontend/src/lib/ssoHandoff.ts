@@ -23,14 +23,25 @@ export async function redirectToApp(app: SsoApp, topic?: string): Promise<boolea
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    console.log('Sending handoff request with headers:', headers);
     const res = await axios.post('/api/sso/handoff', { app, topic }, { headers });
     if (res.data?.success && res.data?.url) {
       window.location.href = res.data.url;
       return true;
     }
     return false;
-  } catch (err) {
-    console.error(`SSO handoff to ${app} failed:`, err);
+  } catch (err: any) {
+    console.error(`SSO handoff to ${app} failed:`, err.message || 'Unknown error');
+    
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('edlearn_token');
+        localStorage.removeItem('edlearn_user');
+        delete axios.defaults.headers.common['Authorization'];
+        window.location.href = '/login';
+      }
+    }
+    
     return false;
   }
 }
