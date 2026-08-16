@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
 import { validateQuery } from '../middleware/validate';
 import { NewsQuerySchema } from '../schemas/content.schemas';
+import { runNewsFetch } from '../services/newsCron';
 
 const router = Router();
 
