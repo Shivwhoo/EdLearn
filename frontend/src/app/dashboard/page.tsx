@@ -357,6 +357,28 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {/* Gamification Widget */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 -mt-2">
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200/60 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+            <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-md shadow-amber-500/20 text-white">
+              <Flame className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] text-amber-700 font-semibold uppercase tracking-wider">Day Streak</p>
+              <p className="text-2xl font-black text-amber-900 tracking-tight">{user?.streakCount || 0}</p>
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/60 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+            <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20 text-white">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] text-blue-700 font-semibold uppercase tracking-wider">Total XP</p>
+              <p className="text-2xl font-black text-blue-900 tracking-tight">{user?.xp || 0}</p>
+            </div>
+          </div>
+        </div>
+
         {errorMsg && (
           <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs">
             {errorMsg}

@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code, Download, Loader2, CheckCircle2, Zap, Brain } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Mermaid from './Mermaid';
 import { PodcastPlayer } from './PodcastPlayer';
 import { exportNotesPdf } from '@/lib/exportPdf';
+import QuickCheckModal from './QuickCheckModal';
+import FlashcardsModal from './FlashcardsModal';
 interface LivingDocumentProps {
   onTriggerGenerate: () => void;
   sentenceRef: React.MutableRefObject<string[]>;
@@ -29,6 +31,8 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
 
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showCompletedToast, setShowCompletedToast] = useState(false);
+  const [isQuickCheckOpen, setIsQuickCheckOpen] = useState(false);
+  const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasMarkedRef = useRef(false);
 
@@ -299,10 +303,30 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
               title="Download as PDF"
             >
               {isPdfExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              <span>{isPdfExporting ? 'Exporting...' : 'Download PDF'}</span>
+              <span>{isPdfExporting ? 'Exporting...' : 'PDF'}</span>
             </button>
 
-            <div className="flex flex-col items-center gap-0.5">
+            <button
+              onClick={() => setIsFlashcardsOpen(true)}
+              disabled={!activeVersionId}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Review Flashcards"
+            >
+              <Brain className="h-3.5 w-3.5" />
+              <span>Flashcards</span>
+            </button>
+
+            <button
+              onClick={() => setIsQuickCheckOpen(true)}
+              disabled={!activeVersionId}
+              className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-500 text-amber-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Quick Check Micro-assessment"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <span>Quick Check</span>
+            </button>
+
+            <div className="flex flex-col items-center gap-0.5 ml-2">
               <span className="text-[10px] text-slate-400 font-medium">Confuse?</span>
               <button
                 onClick={onTriggerGenerate}
@@ -470,6 +494,22 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
         )}
 
       </div>
+
+      {activeVersionId && (
+        <QuickCheckModal 
+          topicId={activeVersionId} 
+          isOpen={isQuickCheckOpen} 
+          onClose={() => setIsQuickCheckOpen(false)} 
+        />
+      )}
+      
+      {activeVersionId && (
+        <FlashcardsModal 
+          topicId={activeVersionId} 
+          isOpen={isFlashcardsOpen} 
+          onClose={() => setIsFlashcardsOpen(false)} 
+        />
+      )}
     </div>
   );
 };

@@ -41,9 +41,23 @@ const SAMPLE_COMPASS_RESULT = {
   scoredOn: '3 days ago',
 };
 
+function timeAgo(dateString: string) {
+  const diff = Date.now() - new Date(dateString).getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+}
+
 /** Detail modal with an embedded player */
+function extractYoutubeId(url: string) {
+  if (!url) return null;
+  const match = url.match(/[?&]v=([^&]+)/) || url.match(/youtu\.be\/([^?]+)/);
+  return match ? match[1] : null;
+}
+
 function PlayerModal({ item, onClose }: { item: any; onClose: () => void }) {
-  const ytId = item.contentType === 'video' ? youtubeId(item.contentUrl) : null;
+  const ytId = item.contentType === 'video' ? extractYoutubeId(item.contentUrl) : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();

@@ -54,7 +54,7 @@ router.get('/', validateQuery(NewsQuerySchema), async (req: Request, res: Respon
     // M6: Trigger background update on page refresh (throttled to once per 5 min)
     if (Date.now() - lastNewsFetch > 5 * 60 * 1000) {
       lastNewsFetch = Date.now();
-      runNewsFetch().catch((err) => console.error('[api/news] Background update error:', err));
+      runNewsFetch().catch((err: any) => console.error('[api/news] Background update error:', err));
     }
 
     const where: any = {};

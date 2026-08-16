@@ -31,10 +31,16 @@ import booksRouter from './routes/books';
 import visionBoardRouter from './routes/visionBoard';
 import visionMilestonesRouter from './routes/visionMilestones';
 import authRouter from './routes/auth.router';
+import quizRouter from './routes/quiz';
+import flashcardRouter from './routes/flashcards';
 import gdprRouter from './routes/gdpr.router';
+import jobsRouter from './routes/jobs';
+import billingRouter, { webhookRouter } from './routes/billing';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
+import './workers/aiWorker';
+
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -63,6 +69,9 @@ app.use(httpLogger);
 
 // M2: Prometheus request-count/latency instrumentation for every route below.
 app.use(metricsMiddleware);
+
+// CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json consumes the stream
+app.use('/api/billing', express.raw({ type: 'application/json' }), webhookRouter);
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
@@ -169,6 +178,7 @@ app.use('/api/books', booksRouter);
 // queries to that id. Unauthenticated requests never reach the handlers.
 app.use('/api/vision-board', authenticate, visionBoardRouter);
 app.use('/api/vision-milestones', authenticate, visionMilestonesRouter);
+
 
 // --- Auth router (signup, login, refresh, 2FA, forgot/reset-password) ---
 // This router supersedes the inline /api/auth/* handlers below for new features.
@@ -1349,6 +1359,12 @@ Respond with ONLY the single label word — no punctuation, no explanation, no J
     res.json({ success: true, label: 'learn' });
   }
 });
+
+// --- Quiz & Flashcard routers ---
+app.use('/api', authenticate, quizRouter);
+app.use('/api', authenticate, flashcardRouter);
+app.use('/api', authenticate, jobsRouter);
+app.use('/api/billing', billingRouter);
 
 // --- Fallback handlers (must be registered after every route above) ---
 

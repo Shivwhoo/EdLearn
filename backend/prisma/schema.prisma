@@ -7,90 +7,97 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
-  passwordHash  String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  profile       UserProfile?
-  roadmaps      Roadmap[]
-  milestones    VisionMilestone[]
-  progress      Progress[]
-  credits       Int           @default(15)
-  subscription  Subscription?
-  workspace     Workspace?
-  badges        Badge[]
-  visions       Vision[]
-  refreshTokens         RefreshToken[]
-  passwordResetTokens   PasswordResetToken[]
-  twoFactorSecret       TwoFactorSecret?
-  dataExportRequests    DataExportRequest[]
-}
+  id           String            @id @default(uuid())
+  email        String            @unique
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  profile      UserProfile?
+  roadmaps     Roadmap[]
+  milestones   VisionMilestone[]
+  progress     Progress[]
+  credits      Int               @default(15)
+  subscription Subscription?
+  workspace    Workspace?
+  badges       Badge[]
+  visions      Vision[]
 
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  twoFactorSecret     TwoFactorSecret?
+  dataExportRequests  DataExportRequest[]
+  quizzes             Quiz[]
+  quizAttempts        QuizAttempt[]
+  flashcards          Flashcard[]
+  flashcardProgresses FlashcardProgress[]
+  studyActivities     StudyActivity[]
+  xp                  Int                  @default(0)
+  streakCount         Int                  @default(0)
+  lastActivityDate    DateTime?
+}
 
 /// A single card on a student's personal Vision Board — a learning goal,
 /// career ambition or aspiration they want to keep in front of them.
 /// Always scoped to one owner; the API never trusts a client-supplied userId.
 model Vision {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   title       String
-  description String?  @db.Text
-  category    String   @default("other") // "education" | "career" | "skills" | "achievements" | "growth" | "projects" | "other"
-  imageUrl    String?  @db.Text          // remote https URL or a compact client-downscaled data URL
+  description String?   @db.Text
+  category    String    @default("other") // "education" | "career" | "skills" | "achievements" | "growth" | "projects" | "other"
+  imageUrl    String?   @db.Text // remote https URL or a compact client-downscaled data URL
   targetDate  DateTime?
-  quote       String?                    // short motivational line shown on the card
-  resourceUrl String?                    // optional link to a course, job posting, article...
-  status      String   @default("not_started") // "not_started" | "in_progress" | "achieved"
+  quote       String? // short motivational line shown on the card
+  resourceUrl String? // optional link to a course, job posting, article...
+  status      String    @default("not_started") // "not_started" | "in_progress" | "achieved"
   achievedAt  DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  milestones  VisionMilestone[]
+  milestones VisionMilestone[]
 
   @@index([userId])
   @@index([userId, status])
 }
 
 model Badge {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   title       String
   description String?
   badgeType   String
   imageUrl    String?
 
-  earnedAt    DateTime @default(now())
-
+  earnedAt DateTime @default(now())
 }
 
 /// A single step/milestone on a Vision Board entry's personal roadmap.
 /// Stored in the database — NOT localStorage. Scoped to the owner via userId;
 /// the API never trusts a client-supplied userId.
 model VisionMilestone {
-  id          String    @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  visionId    String?                           // optional link to a specific Vision card
-  vision      Vision?   @relation(fields: [visionId], references: [id], onDelete: SetNull)
+  visionId String? // optional link to a specific Vision card
+  vision   Vision? @relation(fields: [visionId], references: [id], onDelete: SetNull)
 
   title       String
   description String    @default("")
   targetDate  DateTime?
-  sortOrder   Int       @default(0)             // display order within the roadmap
+  sortOrder   Int       @default(0) // display order within the roadmap
   completed   Boolean   @default(false)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([visionId])
@@ -129,17 +136,19 @@ model Day {
 }
 
 model Topic {
-  id          String     @id @default(uuid())
+  id          String      @id @default(uuid())
   dayId       String
   title       String
   mode        Int
   notesHtml   String
   audioUrl    String?
   audioTiming Json?
-  completed   Boolean    @default(false)
-  createdAt   DateTime   @default(now())
+  completed   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
   citations   Citation[]
-  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  day         Day         @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  quizzes     Quiz[]
+  flashcards  Flashcard[]
 }
 
 model Citation {
@@ -152,26 +161,32 @@ model Citation {
 }
 
 model Progress {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  roadmapId   String
-  dayId       String
+  userId    String
+  roadmapId String
+  dayId     String
 
   score       Int      @default(100)
   completedAt DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  stripeId  String   @unique
-  status    String
-  tier      String   @default("FREE")
-  expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  stripeId         String   @unique
+  stripeCustomerId String?  @unique
+  status           String
+  tier             String   @default("FREE")
+  expiresAt        DateTime
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StripeEvent {
+  id        String   @id
+  createdAt DateTime @default(now())
 }
 
 model NewsArticle {
@@ -181,7 +196,7 @@ model NewsArticle {
   source      String
   url         String   @unique
   imageUrl    String?
-  category    String   // "tech", "finance", "world", "medical", "science", "education"
+  category    String // "tech", "finance", "world", "medical", "science", "education"
   publishedAt DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -196,12 +211,12 @@ model MediaContent {
   description  String   @db.Text
   thumbnailUrl String
   contentUrl   String   @unique // YouTube URL or MP3 audio URL
-  contentType  String   // "video" or "audio"
-  platform     String   // "youtube", "podcastindex"
+  contentType  String // "video" or "audio"
+  platform     String // "youtube", "podcastindex"
   channelName  String
-  duration     Int?     // In seconds
+  duration     Int? // In seconds
   publishedAt  DateTime
-  category     String   // "business", "science", "history", "health", "tech", "culture"
+  category     String // "business", "science", "history", "health", "tech", "culture"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -217,9 +232,9 @@ model BookSummary {
   coverImage            String
   description           String   @db.Text
   threeSentenceTakeaway String   @db.Text
-  genre                 String   // "business", "tech", "science", "self-improvement", "history", "health"
-  buyLink               String?  // Affiliate or Amazon link
-  rating                Float?   // Average rating from API
+  genre                 String // "business", "tech", "science", "self-improvement", "history", "health"
+  buyLink               String? // Affiliate or Amazon link
+  rating                Float? // Average rating from API
   publishedAt           DateTime
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -230,22 +245,22 @@ model BookSummary {
 }
 
 model Workspace {
-  id              String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  roadmapId       String?
-  currentDay      Int      @default(1)
-  currentMode     Int      @default(1)
+  roadmapId   String?
+  currentDay  Int     @default(1)
+  currentMode Int     @default(1)
 
   selectedTopicId String?
   topicTitle      String?
 
-  editorContent   String?  @db.Text
+  editorContent String? @db.Text
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ─── Security & Auth models ───────────────────────────────────────────────────
@@ -257,13 +272,13 @@ model Workspace {
 model RefreshToken {
   id        String    @id @default(uuid())
   userId    String
-  token     String    @unique  // SHA-256 hash of the raw opaque token
-  family    String             // UUID family identifier for reuse detection
+  token     String    @unique // SHA-256 hash of the raw opaque token
+  family    String // UUID family identifier for reuse detection
   expiresAt DateTime
-  revokedAt DateTime?          // set when rotated or explicitly revoked
+  revokedAt DateTime? // set when rotated or explicitly revoked
   createdAt DateTime  @default(now())
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([family])
@@ -275,12 +290,12 @@ model RefreshToken {
 model PasswordResetToken {
   id        String   @id @default(uuid())
   userId    String
-  otpHash   String             // SHA-256 of the 6-digit OTP
+  otpHash   String // SHA-256 of the 6-digit OTP
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -292,25 +307,107 @@ model PasswordResetToken {
 model TwoFactorSecret {
   id          String    @id @default(uuid())
   userId      String    @unique
-  secret      String              // TOTP base32 secret (store encrypted in prod)
-  backupCodes String[]            // SHA-256 hashes of one-time recovery codes
+  secret      String // TOTP base32 secret (store encrypted in prod)
+  backupCodes String[] // SHA-256 hashes of one-time recovery codes
   enabled     Boolean   @default(false)
-  verifiedAt  DateTime?           // when the user first confirmed a valid code
+  verifiedAt  DateTime? // when the user first confirmed a valid code
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Audit trail for GDPR data-export requests.
 model DataExportRequest {
   id          String    @id @default(uuid())
   userId      String
-  status      String    @default("pending")  // "pending" | "ready" | "downloaded"
+  status      String    @default("pending") // "pending" | "ready" | "downloaded"
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Quiz {
+  id        String   @id @default(uuid())
+  userId    String
+  topicId   String
+  createdAt DateTime @default(now())
+
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+}
+
+model Question {
+  id           String   @id @default(uuid())
+  quizId       String
+  questionText String
+  options      String[]
+  correctIndex Int
+  explanation  String?  @db.Text
+  order        Int      @default(0)
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  quizId      String
+  userId      String
+  score       Int
+  completedAt DateTime @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Flashcard {
+  id        String   @id @default(uuid())
+  userId    String
+  topicId   String
+  front     String   @db.Text
+  back      String   @db.Text
+  createdAt DateTime @default(now())
+
+  progress FlashcardProgress?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId, topicId])
+}
+
+model FlashcardProgress {
+  flashcardId String   @id
+  userId      String
+  nextReview  DateTime @default(now())
+  interval    Int      @default(0)
+  easeFactor  Float    @default(2.5)
+  repetitions Int      @default(0)
+
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextReview])
+}
+
+model StudyActivity {
+  id           String   @id @default(uuid())
+  userId       String
+  activityType String // e.g., 'QUIZ_COMPLETED', 'FLASHCARD_REVIEWED'
+  xpAwarded    Int
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
