@@ -16,6 +16,7 @@ import Redis from 'ioredis';
 import { runNewsFetch } from './newsCron';
 import { runMediaFetch } from './mediaCron';
 import { runBooksFetch } from './booksCron';
+import { runEmailDigest } from './emailDigestCron';
 
 const REDIS_URL = process.env.BULLMQ_REDIS_URL || 'redis://localhost:6379';
 
@@ -23,6 +24,7 @@ const JOBS: Array<{ name: string; everyMs: number; run: () => Promise<void> }> =
   { name: 'fetch-news', everyMs: 3 * 60 * 60 * 1000, run: runNewsFetch },
   { name: 'fetch-media', everyMs: 6 * 60 * 60 * 1000, run: runMediaFetch },
   { name: 'fetch-books', everyMs: 24 * 60 * 60 * 1000, run: runBooksFetch },
+  { name: 'email-digest', everyMs: 7 * 24 * 60 * 60 * 1000, run: runEmailDigest },
 ];
 
 function startIntervalFallback(): void {

@@ -21,6 +21,8 @@ model User {
   workspace     Workspace?
   badges        Badge[]
   visions       Vision[]
+  flashcards    Flashcard[]
+  certificates  Certificate[]
   refreshTokens         RefreshToken[]
   passwordResetTokens   PasswordResetToken[]
   twoFactorSecret       TwoFactorSecret?
@@ -115,6 +117,7 @@ model Roadmap {
   isAchievable Boolean  @default(true)
   createdAt    DateTime @default(now())
   days         Day[]
+  certificates Certificate[]
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -313,4 +316,36 @@ model DataExportRequest {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// A spaced repetition flashcard for long-term retention.
+model Flashcard {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayId       String
+  front       String   @db.Text
+  back        String   @db.Text
+  easeFactor  Float    @default(2.5)
+  interval    Int      @default(0)
+  repetitions Int      @default(0)
+  dueDate     DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, dueDate])
+}
+
+/// Official course completion certificate records.
+model Certificate {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roadmapId   String
+  roadmap     Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  sha256Hash  String   @unique
+  issuedAt    DateTime @default(now())
+
+  @@unique([userId, roadmapId])
+  @@index([sha256Hash])
 }

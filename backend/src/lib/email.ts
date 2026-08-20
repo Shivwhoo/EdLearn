@@ -74,3 +74,40 @@ export async function sendOtpEmail(to: string, otp: string, purpose = 'verificat
 
   await transporter.sendMail({ from: FROM, to, subject, html });
 }
+
+/**
+ * Send a weekly progress digest email.
+ */
+export async function sendWeeklyDigestEmail(to: string, data: { name: string, activeStreak: number, topicsCompleted: number, nextTopics: string[] }): Promise<void> {
+  const subject = 'Your EdLearn Weekly Progress Report';
+  const nextTopicsList = data.nextTopics.length > 0
+    ? `<ul>${data.nextTopics.map(t => `<li>${t}</li>`).join('')}</ul>`
+    : '<p>You have completed all your active roadmaps! Time to start a new one.</p>';
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;color:#333;">
+      <h2 style="color:#2563EB;">EdLearn Weekly Digest</h2>
+      <p>Hi ${data.name}, here is your learning progress for the week:</p>
+
+      <div style="background:#F8FAFC;padding:16px;border-radius:8px;margin:20px 0;">
+        <h3 style="margin-top:0;">Your Stats</h3>
+        <p>🔥 <strong>Active Streak:</strong> ${data.activeStreak} days</p>
+        <p>📚 <strong>Topics Completed This Week:</strong> ${data.topicsCompleted}</p>
+      </div>
+
+      <h3>Up Next</h3>
+      ${nextTopicsList}
+
+      <p style="margin-top:30px;font-size:0.85rem;color:#666;">
+        Keep up the great work! <br/>
+        — The EdLearn Team
+      </p>
+    </div>`;
+
+  if (!transporter) {
+    console.log(`[Email DEV] Weekly Digest for ${to}: Streak ${data.activeStreak}, Topics ${data.topicsCompleted}`);
+    return;
+  }
+
+  await transporter.sendMail({ from: FROM, to, subject, html });
+}

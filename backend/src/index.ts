@@ -32,6 +32,8 @@ import visionBoardRouter from './routes/visionBoard';
 import visionMilestonesRouter from './routes/visionMilestones';
 import authRouter from './routes/auth.router';
 import gdprRouter from './routes/gdpr.router';
+import flashcardsRouter from './routes/flashcards';
+import certificatesRouter from './routes/certificates';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
@@ -177,6 +179,10 @@ app.use('/api/auth', authRouter);
 
 // --- GDPR endpoints (data export, account deletion) ---
 app.use('/api/gdpr', gdprRouter);
+
+// --- New production-grade learning platform endpoints ---
+app.use('/api/flashcards', authenticate, flashcardsRouter);
+app.use('/api/certificates', certificatesRouter);
 
 // --- Authentication Endpoints ---
 
