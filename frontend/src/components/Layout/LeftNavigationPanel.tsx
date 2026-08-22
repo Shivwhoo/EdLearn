@@ -189,6 +189,20 @@ export const LeftNavigationPanel: React.FC = () => {
           </button>
         </div>
 
+        {/* Study Rooms Link */}
+        <div className="border-t border-slate-200 pt-5 mt-5">
+          <button
+            onClick={() => window.location.href = '/study-rooms'}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all cursor-pointer bg-slate-50 border-slate-200 hover:bg-blue-50 hover:border-blue-200 text-slate-500 hover:text-blue-700"
+          >
+            <span className="text-lg">🤝</span>
+            <div>
+              <div className="text-xs font-semibold tracking-wide">Study Rooms</div>
+              <div className="text-[10px] text-slate-500">Real-time collaboration</div>
+            </div>
+          </button>
+        </div>
+
         {/* Earned Badges shelf — course-completion rewards saved to the DB */}
         <div className="border-t border-slate-200 pt-5 mt-5">
           <h3 className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-3 flex items-center space-x-1">

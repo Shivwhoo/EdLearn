@@ -3,6 +3,8 @@ import './loadEnv';
 import path from 'path';
 import express from 'express';
 import cors from 'cors';
+import http from 'http';
+import { initializeSocket } from './socket';
 import { aiService } from './lib/ai/aiService';
 import { getReferenceContext } from './lib/scraper';
 import { getPedagogicalModeConfig } from './lib/ai/pedagogicalEngine';
@@ -32,6 +34,7 @@ import visionBoardRouter from './routes/visionBoard';
 import visionMilestonesRouter from './routes/visionMilestones';
 import authRouter from './routes/auth.router';
 import gdprRouter from './routes/gdpr.router';
+import studyRoomsRouter from './routes/studyRooms';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
@@ -131,6 +134,9 @@ app.use('/api/auth', authRouter);
 
 // --- GDPR endpoints (data export, account deletion) ---
 app.use('/api/gdpr', gdprRouter);
+
+// --- Study Rooms & Q&A endpoints ---
+app.use('/api/study-rooms', authenticate, studyRoomsRouter);
 
 // --- Authentication Endpoints ---
 
@@ -1358,7 +1364,10 @@ async function startServer() {
   // Retry MongoDB connection up to 3 times before giving up (non-fatal)
   await connectMongoWithRetry();
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+  initializeSocket(server);
+
+  server.listen(PORT, () => {
     logger.info({ port: PORT }, 'Backend server successfully listening');
     // Fire-and-forget: BullMQ worker is optional; Redis unavailability must not crash startup
     startMarketWorker().catch((err) => {
