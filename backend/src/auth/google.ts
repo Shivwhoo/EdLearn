@@ -76,8 +76,16 @@ if (clientID && clientSecret && callbackURL) {
                             },
                             token,
                         });
-                    } catch (error) {
-                        console.error('❌ Google auth error:', error);
+                    } catch (error: any) {
+                        // Distinguish Prisma/DB failures from other exceptions during
+                        // user lookup/create. Never logs credentials or connection
+                        // strings — only the error class/code, e.g. P1001 (can't reach
+                        // DB), P2002 (unique constraint), P2025 (record not found).
+                        console.error('❌ Google auth error (user lookup/create):', {
+                            name: error?.name,
+                            message: error?.message,
+                            prismaErrorCode: error?.code,
+                        });
                         return done(error as Error);
                     }
                 }

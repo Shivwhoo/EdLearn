@@ -48,7 +48,7 @@ router.get('/:roomId/questions', async (req, res) => {
     const { page = '1', limit = '20' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
-    const questions = await db.question.findMany({
+    const questions = await db.roomQuestion.findMany({
       where: { roomId },
       skip,
       take: parseInt(limit as string),
@@ -81,7 +81,7 @@ router.post('/:roomId/questions', async (req, res) => {
 
     if (!title || !body) return res.status(400).json({ error: 'Title and body are required' });
 
-    const question = await db.question.create({
+    const question = await db.roomQuestion.create({
       data: {
         title,
         body,
@@ -108,7 +108,7 @@ router.post('/questions/:questionId/answers', async (req, res) => {
 
     if (!body) return res.status(400).json({ error: 'Body is required' });
 
-    const answer = await db.answer.create({
+    const answer = await db.roomAnswer.create({
       data: {
         body,
         questionId,
@@ -130,12 +130,12 @@ router.delete('/questions/:questionId', async (req, res) => {
     const userId = (req as AuthenticatedRequest).user!.id;
     const { questionId } = req.params;
 
-    const question = await db.question.findUnique({ where: { id: questionId } });
+    const question = await db.roomQuestion.findUnique({ where: { id: questionId } });
     if (!question || question.authorId !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    await db.question.delete({ where: { id: questionId } });
+    await db.roomQuestion.delete({ where: { id: questionId } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete question' });
@@ -148,12 +148,12 @@ router.delete('/answers/:answerId', async (req, res) => {
     const userId = (req as AuthenticatedRequest).user!.id;
     const { answerId } = req.params;
 
-    const answer = await db.answer.findUnique({ where: { id: answerId } });
+    const answer = await db.roomAnswer.findUnique({ where: { id: answerId } });
     if (!answer || answer.authorId !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    await db.answer.delete({ where: { id: answerId } });
+    await db.roomAnswer.delete({ where: { id: answerId } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete answer' });

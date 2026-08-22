@@ -33,11 +33,17 @@ import booksRouter from './routes/books';
 import visionBoardRouter from './routes/visionBoard';
 import visionMilestonesRouter from './routes/visionMilestones';
 import authRouter from './routes/auth.router';
+import quizRouter from './routes/quiz';
+import flashcardRouter from './routes/flashcards';
 import gdprRouter from './routes/gdpr.router';
 import studyRoomsRouter from './routes/studyRooms';
+import jobsRouter from './routes/jobs';
+import billingRouter, { webhookRouter } from './routes/billing';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
+import './workers/aiWorker';
+
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -67,6 +73,9 @@ app.use(httpLogger);
 // M2: Prometheus request-count/latency instrumentation for every route below.
 app.use(metricsMiddleware);
 
+// CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json consumes the stream
+app.use('/api/billing', express.raw({ type: 'application/json' }), webhookRouter);
+
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
 
@@ -82,33 +91,79 @@ app.use('/api/tts/audio', express.static(path.join(__dirname, '../tts-audio')));
 
 // Google OAuth Routes
 app.get('/api/auth/google', (req, res, next) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  // Must match the exact condition in auth/google.ts that gates strategy
+  // registration (clientID && clientSecret && callbackURL). This route used
+  // to only check CLIENT_ID/CLIENT_SECRET, so a missing GOOGLE_CALLBACK_URL
+  // would leave the 'google' strategy unregistered and passport.authenticate
+  // would throw synchronously ("Unknown authentication strategy \"google\""),
+  // crashing to Express's generic Internal Server Error instead of a clean
+  // diagnostic response.
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_CALLBACK_URL) {
+    console.error(
+      '❌ Google OAuth is not configured — missing env var(s):',
+      !process.env.GOOGLE_CLIENT_ID ? 'GOOGLE_CLIENT_ID' : '',
+      !process.env.GOOGLE_CLIENT_SECRET ? 'GOOGLE_CLIENT_SECRET' : '',
+      !process.env.GOOGLE_CALLBACK_URL ? 'GOOGLE_CALLBACK_URL' : ''
+    );
     return res.status(500).json({ error: 'Google OAuth is not configured' });
   }
   passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
 
-app.get(
-  '/api/auth/google/callback',
-  passport.authenticate('google', { session: false }),
-  (req, res) => {
+app.get('/api/auth/google/callback', (req, res, next) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  passport.authenticate('google', { session: false }, (err: any, user: any, info: any) => {
+    if (err) {
+      // Strategy-level errors: DB/Prisma failures during user lookup/create,
+      // or an InternalOAuthError from passport-oauth2 when Google's token
+      // endpoint itself rejects the exchange (invalid_client, redirect_uri
+      // mismatch, etc.). Break these apart instead of a bare err.message so
+      // the real cause is visible instead of collapsing into one bucket.
+      // Never logs secrets, codes, or tokens — only error classification.
+      const diag: Record<string, unknown> = { name: err.name, message: err.message };
+      if (err.code) diag.prismaErrorCode = err.code; // e.g. P1001, P2002, P2025
+      if (err.oauthError) {
+        const oe: any = err.oauthError;
+        diag.googleHttpStatus = oe.statusCode;
+        const raw = typeof oe.data === 'string' ? oe.data : undefined;
+        if (raw) {
+          try {
+            const body = JSON.parse(raw);
+            diag.googleError = body.error; // e.g. "invalid_client", "redirect_uri_mismatch"
+            diag.googleErrorDescription = body.error_description;
+          } catch {
+            // Non-JSON body from Google — skip rather than log raw content.
+          }
+        }
+      }
+      console.error('❌ Google OAuth strategy error:', diag);
+      return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
+    }
+    if (!user) {
+      // Authentication failed without a hard error — e.g. user denied
+      // consent (access_denied) or Passport rejected the callback params.
+      console.error('❌ Google OAuth failed — no user returned. info:', {
+        message: info?.message,
+        name: info?.name,
+      });
+      return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
+    }
+
     try {
-      const { token } = (req.user as any);
+      const { token } = user;
       console.log('✅ Token generated:', token ? 'Yes' : 'No');
 
-      // ✅ This should redirect to your frontend callback
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const redirectUrl = `${frontendUrl}/auth/callback?token=${token}`;
       console.log('🔀 Redirecting to:', redirectUrl);
 
       res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('❌ Callback error:', error);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    } catch (callbackError) {
+      console.error('❌ Callback error:', callbackError);
       res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
     }
-  }
-);
+  })(req, res, next);
+});
 
 // 1. Health Probe
 app.get('/api/health', (req, res) => {
@@ -126,6 +181,7 @@ app.use('/api/books', booksRouter);
 // queries to that id. Unauthenticated requests never reach the handlers.
 app.use('/api/vision-board', authenticate, visionBoardRouter);
 app.use('/api/vision-milestones', authenticate, visionMilestonesRouter);
+
 
 // --- Auth router (signup, login, refresh, 2FA, forgot/reset-password) ---
 // This router supersedes the inline /api/auth/* handlers below for new features.
@@ -1108,21 +1164,22 @@ app.get('/api/facts', authenticate, async (req: express.Request, res: express.Re
       : (user?.profile?.careerGoal || 'general computer science and technology');
 
     const systemPrompt = `You generate short, genuinely interesting "did you know" facts for a micro-learning feed.
-Facts must be factually accurate, specific (not vague truisms), and directly tied to one of the given subjects.
+Facts must be factually accurate, specific (not vague truisms), and cover a broad range of interesting cross-domain subjects (such as science, technology breakthroughs, space, history, human biology, nature, architecture, and design).
+The facts should NOT be limited to any single topic, but should be diverse, surprising, and engaging.
 You must return your output strictly in JSON format matching the schema below.
 Schema:
 {
   "facts": [
     {
       "fact": "string (one short punchy sentence, no more)",
-      "relatedTopic": "string (which subject this fact relates to)",
+      "relatedTopic": "string (the domain/subject this fact relates to, e.g. 'Space', 'History', 'Nature')",
       "detail": "string (2-4 sentences expanding on the fact with brief 'why'/'how' context — this is only shown after the user clicks to expand the fact, so it should add real explanation, not repeat the fact verbatim)"
     }
   ]
 }
 Return exactly 8 facts. Do not wrap output in markdown code blocks. Return only valid JSON.`;
 
-    const userPrompt = `Generate 8 short, interesting facts related to these subjects: ${subjectLine}.`;
+    const userPrompt = `Generate 8 diverse, surprising, and interesting cross-domain facts across science, tech history, biology, space, and culture. Make sure they are not just focused on a single topic, but represent a healthy mix of different fields.`;
 
     const responseText = await aiService.generate(userPrompt, {
       systemPrompt,
@@ -1141,9 +1198,8 @@ Return exactly 8 facts. Do not wrap output in markdown code blocks. Return only 
 
     const facts = Array.isArray(parsed?.facts) ? parsed.facts : [];
 
-    // 6 hours — long enough to avoid regenerating on every dashboard visit,
-    // short enough that facts stay reasonably fresh as the user's roadmap changes.
-    await redisCache.setCache(cacheKey, JSON.stringify(facts), 21600);
+    // M6: Cache for exactly 30 minutes (1800 seconds)
+    await redisCache.setCache(cacheKey, JSON.stringify(facts), 1800);
 
     res.json({ success: true, facts });
   } catch (error) {
@@ -1309,6 +1365,12 @@ Respond with ONLY the single label word — no punctuation, no explanation, no J
     res.json({ success: true, label: 'learn' });
   }
 });
+
+// --- Quiz & Flashcard routers ---
+app.use('/api', authenticate, quizRouter);
+app.use('/api', authenticate, flashcardRouter);
+app.use('/api', authenticate, jobsRouter);
+app.use('/api/billing', billingRouter);
 
 // --- Fallback handlers (must be registered after every route above) ---
 

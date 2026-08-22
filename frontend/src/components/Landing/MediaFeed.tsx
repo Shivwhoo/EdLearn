@@ -36,6 +36,31 @@ function PlayerModal({ item, onClose }: { item: MediaItem; onClose: () => void }
     };
   }, [onClose]);
 
+  useEffect(() => {
+    try {
+      const historyJson = localStorage.getItem('media_history');
+      const history = historyJson ? JSON.parse(historyJson) : [];
+      const filtered = history.filter((h: any) => h.id !== item.id);
+      const entry = {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        contentType: item.contentType,
+        thumbnailUrl: item.thumbnailUrl,
+        contentUrl: item.contentUrl,
+        channelName: item.channelName,
+        duration: item.duration,
+        publishedAt: item.publishedAt,
+        watchedAt: new Date().toISOString(),
+      };
+      const updated = [entry, ...filtered].slice(0, 10);
+      localStorage.setItem('media_history', JSON.stringify(updated));
+      window.dispatchEvent(new Event('mediaHistoryUpdate'));
+    } catch (err) {
+      console.error('Failed to save media history:', err);
+    }
+  }, [item]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
