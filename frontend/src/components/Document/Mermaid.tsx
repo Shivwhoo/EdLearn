@@ -45,6 +45,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
       const sanitizedChart = chart
         .replace(/\|([^|]*)\|\s*>/g, '|$1|')
         .replace(/\|([^|]*)\|\s*-\s*>/g, '|$1|')
+        // Automatically quote unquoted labels containing parentheses or commas inside brackets.
+        // E.g. A[Label (with parens)] -> A["Label (with parens)"]
+        .replace(/([A-Za-z0-9_]+)\[([^"\]]*(?:\(|\)|,)[^"\]]*)\]/g, '$1["$2"]')
         .trim();
 
       // Pre-validate the chart before rendering so we can show our own
@@ -64,7 +67,8 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart }) => {
         })
         .catch((err) => {
           if (isMounted) {
-            console.error('Mermaid render error:', err);
+            // Next.js intercepts console.error. Change to console.warn to avoid full-screen crash overlays
+            console.warn('Mermaid render error:', err);
             setError('Failed to parse visual flowchart syntax.');
             // Clear any partial/error HTML Mermaid may have injected
             if (containerRef.current) {

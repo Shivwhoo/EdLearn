@@ -7,92 +7,96 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
-  passwordHash  String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  profile       UserProfile?
-  roadmaps      Roadmap[]
-  milestones    VisionMilestone[]
-  progress      Progress[]
-  credits       Int           @default(15)
-  subscription  Subscription?
-  workspace     Workspace?
-  badges        Badge[]
-  visions       Vision[]
-  flashcards    Flashcard[]
-  certificates  Certificate[]
-  refreshTokens         RefreshToken[]
-  passwordResetTokens   PasswordResetToken[]
-  twoFactorSecret       TwoFactorSecret?
-  dataExportRequests    DataExportRequest[]
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  profile             UserProfile?
+  roadmaps            Roadmap[]
+  milestones          VisionMilestone[]
+  progress            Progress[]
+  role                String               @default("USER") // "USER" | "ADMIN" | "MODERATOR"
+  credits             Int                  @default(15)
+  subscription        Subscription?
+  workspace           Workspace?
+  badges              Badge[]
+  visions             Vision[]
+  bookmarks           Bookmark[]
+  quizAttempts        QuizAttempt[]
+  notes               Note[]
+  notifications       Notification[]
+  flashcards          Flashcard[]
+  flashcardProgresses FlashcardProgress[]
+  certificates        Certificate[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  twoFactorSecret     TwoFactorSecret?
+  dataExportRequests  DataExportRequest[]
 }
-
 
 /// A single card on a student's personal Vision Board — a learning goal,
 /// career ambition or aspiration they want to keep in front of them.
 /// Always scoped to one owner; the API never trusts a client-supplied userId.
 model Vision {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   title       String
-  description String?  @db.Text
-  category    String   @default("other") // "education" | "career" | "skills" | "achievements" | "growth" | "projects" | "other"
-  imageUrl    String?  @db.Text          // remote https URL or a compact client-downscaled data URL
+  description String?   @db.Text
+  category    String    @default("other") // "education" | "career" | "skills" | "achievements" | "growth" | "projects" | "other"
+  imageUrl    String?   @db.Text // remote https URL or a compact client-downscaled data URL
   targetDate  DateTime?
-  quote       String?                    // short motivational line shown on the card
-  resourceUrl String?                    // optional link to a course, job posting, article...
-  status      String   @default("not_started") // "not_started" | "in_progress" | "achieved"
+  quote       String? // short motivational line shown on the card
+  resourceUrl String? // optional link to a course, job posting, article...
+  status      String    @default("not_started") // "not_started" | "in_progress" | "achieved"
   achievedAt  DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  milestones  VisionMilestone[]
+  milestones VisionMilestone[]
 
   @@index([userId])
   @@index([userId, status])
 }
 
 model Badge {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   title       String
   description String?
   badgeType   String
   imageUrl    String?
 
-  earnedAt    DateTime @default(now())
-
+  earnedAt DateTime @default(now())
 }
 
 /// A single step/milestone on a Vision Board entry's personal roadmap.
 /// Stored in the database — NOT localStorage. Scoped to the owner via userId;
 /// the API never trusts a client-supplied userId.
 model VisionMilestone {
-  id          String    @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  visionId    String?                           // optional link to a specific Vision card
-  vision      Vision?   @relation(fields: [visionId], references: [id], onDelete: SetNull)
+  visionId String? // optional link to a specific Vision card
+  vision   Vision? @relation(fields: [visionId], references: [id], onDelete: SetNull)
 
   title       String
   description String    @default("")
   targetDate  DateTime?
-  sortOrder   Int       @default(0)             // display order within the roadmap
+  sortOrder   Int       @default(0) // display order within the roadmap
   completed   Boolean   @default(false)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([visionId])
@@ -110,15 +114,15 @@ model UserProfile {
 }
 
 model Roadmap {
-  id           String   @id @default(uuid())
+  id           String        @id @default(uuid())
   userId       String
   title        String
   deadline     DateTime
-  isAchievable Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  isAchievable Boolean       @default(true)
+  createdAt    DateTime      @default(now())
   days         Day[]
   certificates Certificate[]
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Day {
@@ -132,17 +136,18 @@ model Day {
 }
 
 model Topic {
-  id          String     @id @default(uuid())
+  id          String      @id @default(uuid())
   dayId       String
   title       String
   mode        Int
   notesHtml   String
   audioUrl    String?
   audioTiming Json?
-  completed   Boolean    @default(false)
-  createdAt   DateTime   @default(now())
+  completed   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
   citations   Citation[]
-  day         Day        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  day         Day         @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  flashcards  Flashcard[]
 }
 
 model Citation {
@@ -155,26 +160,32 @@ model Citation {
 }
 
 model Progress {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId      String
-  roadmapId   String
-  dayId       String
+  userId    String
+  roadmapId String
+  dayId     String
 
   score       Int      @default(100)
   completedAt DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  stripeId  String   @unique
-  status    String
-  tier      String   @default("FREE")
-  expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  stripeId         String   @unique
+  stripeCustomerId String?  @unique
+  status           String
+  tier             String   @default("FREE")
+  expiresAt        DateTime
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StripeEvent {
+  id        String   @id
+  createdAt DateTime @default(now())
 }
 
 model NewsArticle {
@@ -184,7 +195,7 @@ model NewsArticle {
   source      String
   url         String   @unique
   imageUrl    String?
-  category    String   // "tech", "finance", "world", "medical", "science", "education"
+  category    String // "tech", "finance", "world", "medical", "science", "education"
   publishedAt DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -199,12 +210,12 @@ model MediaContent {
   description  String   @db.Text
   thumbnailUrl String
   contentUrl   String   @unique // YouTube URL or MP3 audio URL
-  contentType  String   // "video" or "audio"
-  platform     String   // "youtube", "podcastindex"
+  contentType  String // "video" or "audio"
+  platform     String // "youtube", "podcastindex"
   channelName  String
-  duration     Int?     // In seconds
+  duration     Int? // In seconds
   publishedAt  DateTime
-  category     String   // "business", "science", "history", "health", "tech", "culture"
+  category     String // "business", "science", "history", "health", "tech", "culture"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -220,9 +231,9 @@ model BookSummary {
   coverImage            String
   description           String   @db.Text
   threeSentenceTakeaway String   @db.Text
-  genre                 String   // "business", "tech", "science", "self-improvement", "history", "health"
-  buyLink               String?  // Affiliate or Amazon link
-  rating                Float?   // Average rating from API
+  genre                 String // "business", "tech", "science", "self-improvement", "history", "health"
+  buyLink               String? // Affiliate or Amazon link
+  rating                Float? // Average rating from API
   publishedAt           DateTime
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -233,22 +244,22 @@ model BookSummary {
 }
 
 model Workspace {
-  id              String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  roadmapId       String?
-  currentDay      Int      @default(1)
-  currentMode     Int      @default(1)
+  roadmapId   String?
+  currentDay  Int     @default(1)
+  currentMode Int     @default(1)
 
   selectedTopicId String?
   topicTitle      String?
 
-  editorContent   String?  @db.Text
+  editorContent String? @db.Text
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ─── Security & Auth models ───────────────────────────────────────────────────
@@ -260,13 +271,13 @@ model Workspace {
 model RefreshToken {
   id        String    @id @default(uuid())
   userId    String
-  token     String    @unique  // SHA-256 hash of the raw opaque token
-  family    String             // UUID family identifier for reuse detection
+  token     String    @unique // SHA-256 hash of the raw opaque token
+  family    String // UUID family identifier for reuse detection
   expiresAt DateTime
-  revokedAt DateTime?          // set when rotated or explicitly revoked
+  revokedAt DateTime? // set when rotated or explicitly revoked
   createdAt DateTime  @default(now())
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([family])
@@ -278,12 +289,12 @@ model RefreshToken {
 model PasswordResetToken {
   id        String   @id @default(uuid())
   userId    String
-  otpHash   String             // SHA-256 of the 6-digit OTP
+  otpHash   String // SHA-256 of the 6-digit OTP
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -295,56 +306,134 @@ model PasswordResetToken {
 model TwoFactorSecret {
   id          String    @id @default(uuid())
   userId      String    @unique
-  secret      String              // TOTP base32 secret (store encrypted in prod)
-  backupCodes String[]            // SHA-256 hashes of one-time recovery codes
+  secret      String // TOTP base32 secret (store encrypted in prod)
+  backupCodes String[] // SHA-256 hashes of one-time recovery codes
   enabled     Boolean   @default(false)
-  verifiedAt  DateTime?           // when the user first confirmed a valid code
+  verifiedAt  DateTime? // when the user first confirmed a valid code
 
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Audit trail for GDPR data-export requests.
 model DataExportRequest {
   id          String    @id @default(uuid())
   userId      String
-  status      String    @default("pending")  // "pending" | "ready" | "downloaded"
+  status      String    @default("pending") // "pending" | "ready" | "downloaded"
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-/// A spaced repetition flashcard for long-term retention.
-model Flashcard {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dayId       String
-  front       String   @db.Text
-  back        String   @db.Text
-  easeFactor  Float    @default(2.5)
-  interval    Int      @default(0)
-  repetitions Int      @default(0)
-  dueDate     DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+/// Bookmarked resources across Books, Media, News, and Roadmap Topics.
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemType  String // "book" | "media" | "news" | "topic"
+  itemId    String
+  title     String
+  metadata  Json?
+  createdAt DateTime @default(now())
 
-  @@index([userId, dueDate])
+  @@unique([userId, itemType, itemId])
+  @@index([userId])
+  @@index([userId, itemType])
+}
+
+/// Recorded quiz submissions and scoring history.
+model QuizAttempt {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayId          String
+  topicId        String?
+  score          Int
+  totalQuestions Int
+  answers        Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, dayId])
+}
+
+/// Personal learner notes attached to a roadmap day.
+model Note {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayId     String
+  topicId   String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dayId])
+  @@index([userId])
+}
+
+/// In-app notifications for achievements, milestones, and updates.
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String   @db.Text
+  type      String   @default("info") // "info" | "achievement" | "streak" | "reminder"
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+/// A spaced repetition flashcard for long-term retention.
+/// SM-2 scheduling state lives on the related FlashcardProgress record, not here.
+model Flashcard {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  front     String   @db.Text
+  back      String   @db.Text
+  createdAt DateTime @default(now())
+
+  progress FlashcardProgress?
+
+  @@index([userId, topicId])
+}
+
+/// SM-2 spaced-repetition scheduling state for a single flashcard.
+/// One-to-one with Flashcard via the shared flashcardId primary key.
+model FlashcardProgress {
+  flashcardId String   @id
+  userId      String
+  nextReview  DateTime @default(now())
+  interval    Int      @default(0)
+  easeFactor  Float    @default(2.5)
+  repetitions Int      @default(0)
+
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextReview])
 }
 
 /// Official course completion certificate records.
 model Certificate {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  roadmapId   String
-  roadmap     Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
-  sha256Hash  String   @unique
-  issuedAt    DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roadmapId  String
+  roadmap    Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  sha256Hash String   @unique
+  issuedAt   DateTime @default(now())
 
   @@unique([userId, roadmapId])
   @@index([sha256Hash])

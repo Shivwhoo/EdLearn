@@ -29,8 +29,11 @@ vi.mock('../lib/db', () => {
       update: vi.fn(),
       delete: vi.fn(),
       updateMany: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     userProfile: {
+      findUnique: vi.fn(),
       upsert: vi.fn(),
     },
     roadmap: {
@@ -38,6 +41,7 @@ vi.mock('../lib/db', () => {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
     },
     day: {
       findUnique: vi.fn(),
@@ -48,11 +52,13 @@ vi.mock('../lib/db', () => {
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
     },
     progress: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
     },
     badge: {
       findFirst: vi.fn(),
@@ -112,6 +118,30 @@ vi.mock('../lib/db', () => {
     newsArticle: {
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
+    },
+    bookmark: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      count: vi.fn().mockResolvedValue(0),
+      upsert: vi.fn().mockResolvedValue({ id: 'b-1' }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    quizAttempt: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn().mockResolvedValue({ id: 'q-1', score: 5, totalQuestions: 5 }),
+    },
+    note: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({ id: 'n-1', content: 'notes' }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    notification: {
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn().mockResolvedValue({ id: 'notif-1' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     $transaction: vi.fn((arr: any[]) => Promise.all(arr)),
   };

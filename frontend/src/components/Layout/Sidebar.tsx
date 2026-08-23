@@ -15,103 +15,126 @@ import {
   Newspaper,
   NotebookPen,
   Sparkles,
+  Bookmark,
+  Search,
+  ShieldAlert,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-
-/**
- * Persistent left navigation sidebar for the authenticated app shell
- * (dashboard + hub). Renders three responsive pieces:
- *   - a fixed 240px sidebar on desktop (md and up)
- *   - a fixed top bar with a hamburger on mobile
- *   - a slide-in drawer (with backdrop) on mobile
- *
- * The public marketing navbar (`PublicNavbar`) hides itself on these routes,
- * so this component is the sole chrome for /dashboard and /hub.
- */
-
+import UniversalSearchModal from './UniversalSearchModal';
+import NotificationCenter from './NotificationCenter';
 interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  adminOnly?: boolean;
+  /** True for a nav "item" that isn't real navigation — see VISION_BOARD_KEY below. */
+  isModalTrigger?: boolean;
 }
 
-// Only routes that actually exist — no dead links / 404s.
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/vision-board', label: 'Vision Board', icon: Sparkles },
   { href: '/hub', label: 'Hub', icon: Compass },
   { href: '/workspace', label: 'Study Workspace', icon: NotebookPen },
+  { href: '/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/media', label: 'Media', icon: MonitorPlay },
   { href: '/books', label: 'Books', icon: Library },
   { href: '/news', label: 'News', icon: Newspaper },
+  { href: '/admin', label: 'Admin Portal', icon: ShieldAlert, adminOnly: true },
 ];
 
-/** The inner sidebar content, shared by the desktop rail and mobile drawer. */
 function SidebarContent({
   pathname,
   userName,
   userEmail,
+  userRole,
   showUser,
   onLogout,
+  onOpenSearch,
   onNavigate,
 }: {
   pathname: string;
   userName: string;
   userEmail: string;
+  userRole: string;
   showUser: boolean;
   onLogout: () => void;
+  onOpenSearch: () => void;
   onNavigate?: () => void;
 }) {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
+  const isAdmin = userRole === 'ADMIN' || userRole === 'MODERATOR';
+
   return (
     <div className="flex h-full flex-col">
-      {/* Brand */}
-      <Link
-        href="/dashboard"
-        onClick={onNavigate}
-        className="flex items-center gap-2 h-16 shrink-0 px-5 border-b border-slate-100"
-      >
-        <div className="p-1.5 bg-blue-600 rounded-lg">
-          <GraduationCap className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-lg font-extrabold tracking-tight text-slate-900">
-          EdLearn
-        </span>
-      </Link>
+      {/* Brand & Notification Bell */}
+      <div className="flex items-center justify-between h-16 shrink-0 px-5 border-b border-slate-100">
+        <Link
+          href="/dashboard"
+          onClick={onNavigate}
+          className="flex items-center gap-2"
+        >
+          <div className="p-1.5 bg-blue-600 rounded-lg">
+            <GraduationCap className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-extrabold tracking-tight text-slate-900">
+            EdLearn
+          </span>
+        </Link>
+        <NotificationCenter />
+      </div>
+
+      {/* Search trigger button */}
+      <div className="px-3 pt-3">
+        <button
+          onClick={onOpenSearch}
+          className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2">
+            <Search className="h-3.5 w-3.5" />
+            <span>Search resources...</span>
+          </span>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-bold bg-white border border-slate-200 rounded text-slate-400">
+            ⌘K
+          </kbd>
+        </button>
+      </div>
 
       {/* Nav links */}
-      <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? 'page' : undefined}
-              className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
-                active
-                  ? 'bg-blue-50 text-blue-700 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <Icon
-                className={`h-5 w-5 shrink-0 transition-colors ${
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map(
+          ({ href, label, icon: Icon, isModalTrigger }) => {
+            const active = isActive(href);
+
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onNavigate}
+                aria-current={active ? 'page' : undefined}
+                className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
                   active
-                    ? 'text-blue-600'
-                    : 'text-slate-400 group-hover:text-slate-600'
+                    ? 'bg-blue-50 text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
-              />
-              <span>{label}</span>
-              {active && (
-                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-600" />
-              )}
-            </Link>
-          );
-        })}
+              >
+                <Icon
+                  className={`h-5 w-5 shrink-0 transition-colors ${
+                    active
+                      ? 'text-blue-600'
+                      : 'text-slate-400 group-hover:text-slate-600'
+                  }`}
+                />
+                <span>{label}</span>
+                {active && (
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-600" />
+                )}
+              </Link>
+            );
+          }
+        )}
       </nav>
 
       {/* Footer: user identity + logout */}
@@ -121,10 +144,17 @@ function SidebarContent({
             <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
               {(userName || userEmail || 'U').charAt(0).toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-slate-800 truncate">
-                {userName || 'Student'}
-              </p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-semibold text-slate-800 truncate">
+                  {userName || 'Student'}
+                </p>
+                {isAdmin && (
+                  <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 rounded text-[9px] font-extrabold">
+                    {userRole}
+                  </span>
+                )}
+              </div>
               {userEmail && (
                 <p className="text-[11px] text-slate-400 truncate">{userEmail}</p>
               )}
@@ -150,30 +180,27 @@ export default function Sidebar() {
 
   const [isMounted, setIsMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Close the drawer whenever the route changes.
+  // Close drawer on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  // Lock body scroll while the mobile drawer is open.
+  // Global Cmd+K / Ctrl+K listener
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.body.style.overflow = mobileOpen ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
     };
-  }, [mobileOpen]);
-
-  // Close on Escape for accessibility.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMobileOpen(false);
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleLogout = () => {
@@ -181,14 +208,14 @@ export default function Sidebar() {
     router.push('/');
   };
 
-  // Guard user fields against SSR/hydration mismatch.
   const userName = isMounted ? user?.fullName || '' : '';
   const userEmail = isMounted ? user?.email || '' : '';
+  const userRole = isMounted ? user?.role || 'USER' : 'USER';
   const showUser = isMounted && !!user;
 
   return (
     <>
-      {/* Mobile top bar (only below md) */}
+      {/* Mobile top bar */}
       <header className="md:hidden fixed top-0 inset-x-0 z-40 h-16 flex items-center justify-between px-4 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <Link href="/dashboard" className="flex items-center gap-2">
           <div className="p-1.5 bg-blue-600 rounded-lg">
@@ -198,43 +225,53 @@ export default function Sidebar() {
             EdLearn
           </span>
         </Link>
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open navigation menu"
-          aria-expanded={mobileOpen}
-          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search"
+            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+          <NotificationCenter />
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation menu"
+            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+        </div>
       </header>
 
-      {/* Desktop fixed sidebar (md and up) */}
+      {/* Desktop fixed sidebar */}
       <aside className="hidden md:flex fixed inset-y-0 left-0 z-40 w-60 flex-col bg-white border-r border-slate-200">
         <SidebarContent
           pathname={pathname}
           userName={userName}
           userEmail={userEmail}
+          userRole={userRole}
           showUser={showUser}
           onLogout={handleLogout}
+          onOpenSearch={() => setSearchOpen(true)}
         />
       </aside>
 
-      {/* Mobile drawer + backdrop (always mounted for smooth slide transitions) */}
+      {/* Mobile drawer */}
       <div
         className={`md:hidden fixed inset-0 z-50 ${
           mobileOpen ? '' : 'pointer-events-none'
         }`}
         aria-hidden={!mobileOpen}
       >
-        {/* Backdrop */}
         <div
           onClick={() => setMobileOpen(false)}
           className={`absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-200 ${
             mobileOpen ? 'opacity-100' : 'opacity-0'
           }`}
         />
-        {/* Drawer */}
         <aside
           className={`absolute inset-y-0 left-0 w-64 bg-white shadow-xl flex flex-col transition-transform duration-200 ease-out ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
@@ -252,12 +289,23 @@ export default function Sidebar() {
             pathname={pathname}
             userName={userName}
             userEmail={userEmail}
+            userRole={userRole}
             showUser={showUser}
             onLogout={handleLogout}
+            onOpenSearch={() => {
+              setMobileOpen(false);
+              setSearchOpen(true);
+            }}
             onNavigate={() => setMobileOpen(false)}
           />
         </aside>
       </div>
+
+      {/* Universal Search Modal */}
+      <UniversalSearchModal
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+      />
     </>
   );
 }

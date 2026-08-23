@@ -2,7 +2,7 @@ import axios from 'axios';
 
 /**
  * Vision Board data layer — types, display metadata and the thin axios wrapper
- * used by /vision-board.
+ * used by VisionBoardModal.
  *
  * Requests go to the relative "/api/vision-board" path, which next.config.ts
  * rewrites to the Express backend, and carry the same `edlearn_token` bearer
@@ -443,4 +443,19 @@ export function readMilestoneFieldErrors(err: unknown): MilestoneFieldErrors {
     if (data?.fields) return data.fields;
   }
   return {};
+}
+
+/**
+ * POST /api/vision-milestones/generate — AI-generates 5-7 major milestones
+ * toward a long-term career goal and persists them for the current user.
+ * Rate-limited server-side, so callers should surface `readableError(err)`
+ * on failure rather than retrying automatically.
+ */
+export async function generateCareerMilestones(token: string, goal: string): Promise<Milestone[]> {
+  const res = await axios.post(
+    `${MILESTONE_BASE}/generate`,
+    { goal: goal.trim() },
+    authHeaders(token)
+  );
+  return (res.data?.milestones ?? []) as Milestone[];
 }

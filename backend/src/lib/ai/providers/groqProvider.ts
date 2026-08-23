@@ -37,7 +37,7 @@ export class GroqProvider implements IAIServiceProvider {
   private apiKey: string;
   private model: string;
 
-  constructor(apiKey?: string, model: string = 'llama-3.3-70b-versatile') {
+  constructor(apiKey?: string, model: string = 'groq/compound') {
     this.apiKey = apiKey || process.env.GROQ_API_KEY || '';
     this.model = model;
   }
@@ -49,7 +49,7 @@ export class GroqProvider implements IAIServiceProvider {
     ];
 
     // Fallback model chain: large → small (much higher TPM limit on free tier)
-    const modelChain = [this.model, 'llama-3.1-8b-instant'];
+    const modelChain = [this.model, 'groq/compound-mini'];
     let lastError: any;
 
     for (const model of modelChain) {
@@ -86,18 +86,26 @@ export class GroqProvider implements IAIServiceProvider {
           // Parse "try again in Xs" from the 429 error body
           if (err?.status === 429 || err?.message?.includes('429')) {
             const match = err.message?.match(/try again in ([\d.]+)(ms|s)/i);
-            let waitMs = 5000; // default 5 s
+            let waitMs = 60000; // default to a huge number if we can't parse it (e.g. 1h18m)
             if (match) {
               const val = parseFloat(match[1]);
               waitMs = match[2].toLowerCase() === 'ms' ? val : val * 1000;
               waitMs += 500; // add 500 ms buffer
             }
             if (attempt < 3) {
+              if (waitMs > 5000) {
+                console.warn(`[Groq] Rate limit wait time (${(waitMs / 1000).toFixed(1)}s) is too long. Skipping retry to trigger failover.`);
+                break;
+              }
               console.warn(`[Groq] Rate-limited on "${model}". Waiting ${(waitMs / 1000).toFixed(1)}s before retry...`);
               await new Promise(r => setTimeout(r, waitMs));
             }
           } else if (attempt < 3) {
             // Non-rate-limit errors: short exponential backoff
+            if (err?.status === 413 || err?.status === 400 || err?.status === 404 || err?.message?.includes('413')) {
+              console.warn(`[Groq] Fatal error ${err?.status} on "${model}". Skipping retry to trigger failover.`);
+              break;
+            }
             await new Promise(r => setTimeout(r, 1000 * attempt));
           }
         }

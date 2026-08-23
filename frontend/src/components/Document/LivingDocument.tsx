@@ -1,10 +1,33 @@
+'use client';
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { BookOpen, RefreshCw, Copy, Check, Lightbulb, List, FileText, ExternalLink, Code, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import {
+  BookOpen,
+  RefreshCw,
+  Copy,
+  Check,
+  Lightbulb,
+  List,
+  FileText,
+  ExternalLink,
+  Code,
+  Download,
+  Loader2,
+  CheckCircle2,
+  Bookmark,
+  Edit3,
+  Sparkles,
+  HelpCircle,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
+import axios from 'axios';
 import Mermaid from './Mermaid';
 import { PodcastPlayer } from './PodcastPlayer';
 import { exportNotesPdf } from '@/lib/exportPdf';
+import PersonalNotesEditor from './PersonalNotesEditor';
+import QuizRunner, { QuizQuestion } from '../Assessment/QuizRunner';
+
 interface LivingDocumentProps {
   onTriggerGenerate: () => void;
   sentenceRef: React.MutableRefObject<string[]>;
@@ -25,12 +48,85 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
     setActiveVersion,
     completedDays,
     markDayCompleted,
+    activeMode,
   } = useWorkspaceStore();
 
+  const [activeTab, setActiveTab] = useState<'study' | 'notes' | 'quiz'>('study');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showCompletedToast, setShowCompletedToast] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasMarkedRef = useRef(false);
+
+  // Switch to quiz tab automatically when activeMode 5 (Gap Finder / Quiz) is selected
+  useEffect(() => {
+    if (activeMode === 5) {
+      setActiveTab('quiz');
+    }
+  }, [activeMode]);
+
+  // Check bookmark status on currentDay change
+  useEffect(() => {
+    if (!currentDay?.id) return;
+    let isMounted = true;
+    const checkBookmark = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('edlearn_token') : null;
+        if (!token) return;
+        const res = await axios.get(
+          `/api/bookmarks/check?itemType=topic&itemId=${encodeURIComponent(currentDay.id)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (isMounted && res.data?.success) {
+          setIsBookmarked(res.data.isBookmarked);
+        }
+      } catch (err) {
+        // silent fail
+      }
+    };
+    checkBookmark();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentDay?.id]);
+
+  const handleToggleBookmark = async () => {
+    if (!currentDay?.id || isBookmarking) return;
+    setIsBookmarking(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('edlearn_token') : null;
+      if (isBookmarked) {
+        // Find and delete
+        const listRes = await axios.get('/api/bookmarks?itemType=topic', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const match = (listRes.data?.bookmarks || []).find((b: any) => b.itemId === currentDay.id);
+        if (match) {
+          await axios.delete(`/api/bookmarks/${match.id}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+        }
+        setIsBookmarked(false);
+      } else {
+        await axios.post(
+          '/api/bookmarks',
+          {
+            itemType: 'topic',
+            itemId: currentDay.id,
+            title: generatedContent?.title || currentDay.title || `Day ${currentDay.dayNumber}`,
+          },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error('Bookmark toggle error:', err);
+    } finally {
+      setIsBookmarking(false);
+    }
+  };
 
   // Compile sentences from notes content structure for TTS highlighting sync
   useEffect(() => {
@@ -41,7 +137,7 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
       generatedContent.introduction || '',
       ...(generatedContent.contentBlocks || []).flatMap((b: any) => [
         b.heading || '',
-        b.content || ''
+        b.content || '',
       ]),
       generatedContent.summary || '',
     ];
@@ -52,22 +148,17 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
       .filter((s) => s.length > 0);
 
     sentenceRef.current = compiledSentences;
-  }, [generatedContent, currentDay]);
+  }, [generatedContent, currentDay, sentenceRef]);
 
-  // Reset scroll + completion guard immediately when the day changes (before
-  // content even loads), so there is no flash of the old scroll position.
+  // Reset scroll + completion guard immediately when the day changes
   useEffect(() => {
     hasMarkedRef.current = false;
     setShowCompletedToast(false);
     if (scrollRef.current) {
-      // Use scroll({ behavior: 'instant' }) to bypass any global
-      // `scroll-behavior: smooth` CSS that would fight a direct scrollTop=0.
       scrollRef.current.scroll({ top: 0, behavior: 'instant' });
     }
   }, [currentDay?.id]);
 
-  // Also scroll to top whenever new content arrives (e.g. after generation or
-  // loading from history) so the user always starts reading from the beginning.
   useEffect(() => {
     if (!generatedContent) return;
     hasMarkedRef.current = false;
@@ -84,7 +175,7 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
     if (!el) return;
     const scrolled = el.scrollTop + el.clientHeight;
     const total = el.scrollHeight;
-    if (total <= el.clientHeight) return; // content fits without scrolling — skip
+    if (total <= el.clientHeight) return;
     if (scrolled / total >= 0.9) {
       hasMarkedRef.current = true;
       markDayCompleted(currentDay.id);
@@ -105,10 +196,6 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
 
   const isDayCompleted = currentDay?.id ? completedDays.has(currentDay.id) : false;
 
-  // Explicit "Mark Day as Complete" action. Runs the same persistence +
-  // celebration path as the scroll-to-bottom auto-detector, but as a deliberate
-  // click so a user who skims (or whose notes fit on one screen) can still
-  // complete the day and, on the final day, trigger the course badge.
   const handleMarkComplete = () => {
     if (!currentDay?.id || completedDays.has(currentDay.id)) return;
     hasMarkedRef.current = true;
@@ -124,8 +211,6 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
     triggerConfetti();
     setTimeout(() => setCopiedIndex(null), 2000);
   };
-
-  const [isPdfExporting, setIsPdfExporting] = useState(false);
 
   const handleDownloadPdf = async () => {
     if (!generatedContent || isPdfExporting) return;
@@ -147,7 +232,6 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
   const renderParagraphWithHighlights = (paragraphText: string) => {
     if (!paragraphText) return null;
 
-    // Split into sentences using punctuation lookahead
     const sentences = paragraphText.match(/[^.!?]+[.!?]+(\s|$)/g) || [paragraphText];
 
     return sentences.map((sentence, idx) => {
@@ -156,7 +240,9 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
 
       const sentencesList = sentenceRef.current;
       const globalIdx = sentencesList.findIndex(
-        (s) => s.toLowerCase().includes(trimmed.toLowerCase()) || trimmed.toLowerCase().includes(s.toLowerCase())
+        (s) =>
+          s.toLowerCase().includes(trimmed.toLowerCase()) ||
+          trimmed.toLowerCase().includes(s.toLowerCase())
       );
       const isActive = activeSentenceIndex === globalIdx;
 
@@ -171,15 +257,60 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
         <span
           key={idx}
           onClick={handleSentenceClick}
-          className={`karaoke-span cursor-pointer rounded px-0.5 transition-colors duration-150 ${isActive
+          className={`karaoke-span cursor-pointer rounded px-0.5 transition-colors duration-150 ${
+            isActive
               ? 'bg-blue-100 text-blue-800 border-b border-blue-400 font-medium'
               : 'hover:bg-slate-100 hover:text-slate-900 text-slate-700'
-            }`}
+          }`}
         >
           {sentence}
         </span>
       );
     });
+  };
+
+  // Generate dynamic quiz questions from content blocks and outline
+  const getQuizQuestions = (): QuizQuestion[] => {
+    if (generatedContent?.quiz && Array.isArray(generatedContent.quiz)) {
+      return generatedContent.quiz;
+    }
+
+    // Dynamic questions derived from content blocks
+    const blocks = generatedContent?.contentBlocks || [];
+    const questions: QuizQuestion[] = [];
+
+    if (blocks.length > 0) {
+      blocks.slice(0, 4).forEach((b: any, idx: number) => {
+        questions.push({
+          id: idx + 1,
+          question: `Regarding "${b.heading}": Which statement best reflects the core principle discussed in this lesson?`,
+          options: [
+            `It focuses on ${b.heading.toLowerCase()} to optimize system understanding and execution.`,
+            `It replaces all conventional foundations with unvalidated assumptions.`,
+            `It should only be applied in theoretical environments without practical testing.`,
+            `It is entirely optional and has no impact on real-world outcomes.`,
+          ],
+          correctIndex: 0,
+          explanation: `As detailed in the study notes under "${b.heading}", applying this principle correctly provides the structured framework for this topic.`,
+        });
+      });
+    }
+
+    // Add general comprehensive question
+    questions.push({
+      id: questions.length + 1,
+      question: `What is the primary objective of mastering "${generatedContent?.title || currentDay?.title}"?`,
+      options: [
+        'To build durable, scalable intuition and practical problem-solving capability.',
+        'To memorize definitions without understanding application.',
+        'To skip foundational prerequisites and jump to edge cases.',
+        'To avoid writing or evaluating structured code/solutions.',
+      ],
+      correctIndex: 0,
+      explanation: 'EdLearn pedagogical tracks prioritize deep conceptual understanding and hands-on proficiency.',
+    });
+
+    return questions;
   };
 
   if (isLoadingContent) {
@@ -192,23 +323,24 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
   }
 
   if (!generatedContent) {
-    // Check if this day already has content in the roadmap data (loading in progress)
     const dayHasExistingContent = (currentDay as any)?.topics?.length > 0;
 
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white">
         {dayHasExistingContent ? (
-          // Content exists in DB — fetchNotesHistory is loading it
           <>
             <RefreshCw className="h-12 w-12 text-blue-600 mb-4 animate-spin" />
             <h2 className="text-lg font-semibold text-slate-800 mb-2">Loading Your Study Notes...</h2>
-            <p className="text-slate-500 max-w-sm text-sm leading-relaxed">Restoring your previously generated content for this day.</p>
+            <p className="text-slate-500 max-w-sm text-sm leading-relaxed">
+              Restoring your previously generated content for this day.
+            </p>
           </>
         ) : (
-          // No content ever generated for this day
           <>
             <BookOpen className="h-16 w-16 text-slate-300 mb-4 animate-pulse" />
-            <h2 className="text-xl font-semibold text-slate-800 mb-2">Ready to Study Day {currentDay?.dayNumber}?</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-2">
+              Ready to Study Day {currentDay?.dayNumber}?
+            </h2>
             <p className="text-slate-500 max-w-sm mb-6 leading-relaxed">
               No notes generated yet for this day. Click below to generate premium AI-powered study content — it will be saved and reloaded instantly next time.
             </p>
@@ -229,246 +361,341 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
       key={currentDay?.id}
       ref={scrollRef}
       onScroll={handleScroll}
-      className={`flex-1 min-h-0 p-8 overflow-y-auto pb-24 bg-white print:h-auto print:overflow-visible print:bg-white print:p-0 ${focusMode ? 'focus-active' : ''}`}
+      className={`flex-1 min-h-0 p-8 overflow-y-auto pb-24 bg-white print:h-auto print:overflow-visible print:bg-white print:p-0 ${
+        focusMode ? 'focus-active' : ''
+      }`}
     >
-      <div className="printable-notes max-w-3xl mx-auto space-y-8 animate-fade-in print:max-w-none print:p-8">
-
+      <div className="printable-notes max-w-3xl mx-auto space-y-6 animate-fade-in print:max-w-none print:p-8">
         {/* Day-complete toast */}
         <div
-          className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-full bg-emerald-600 text-white text-sm font-semibold shadow-xl shadow-emerald-600/30 transition-all duration-500 pointer-events-none ${showCompletedToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}
+          className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-full bg-emerald-600 text-white text-sm font-semibold shadow-xl shadow-emerald-600/30 transition-all duration-500 pointer-events-none ${
+            showCompletedToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
         >
           <CheckCircle2 className="h-5 w-5" />
           Day {currentDay?.dayNumber} Complete!
         </div>
 
-        {/* Header Section */}
-        <div className="border-b border-slate-100 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-md text-xs font-medium text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" />
-                Study Notes
-              </span>
-              <span className="px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-md text-xs font-medium text-blue-700 uppercase tracking-wider">
-                {generatedContent.difficulty || 'Intermediate'}
-              </span>
-            </div>
-            <h1 className="text-3xl font-extrabold text-slate-900 mt-3 leading-tight tracking-[-0.02em]">
-              {generatedContent.title}
-            </h1>
+        {/* Tab Navigation: Study Guide vs Personal Notes vs Quiz */}
+        <div className="print:hidden flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('study')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'study'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>Study Guide</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('notes')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'notes'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+              <span>Personal Notes</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('quiz')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'quiz'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span>Assessment & Quiz</span>
+            </button>
           </div>
 
-          {/* Version Switcher & Regeneration actions — hidden when printing */}
-          <div className="print:hidden flex items-center space-x-2.5 self-end md:self-center">
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleMarkComplete}
-              disabled={isDayCompleted}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                isDayCompleted
-                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 cursor-default'
-                  : 'bg-emerald-600 border border-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm'
+              onClick={handleToggleBookmark}
+              disabled={isBookmarking}
+              className={`p-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                isBookmarked
+                  ? 'bg-amber-50 border-amber-200 text-amber-700'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
-              title={isDayCompleted ? 'You have completed this day' : 'Mark this day as complete'}
+              title={isBookmarked ? 'Remove bookmark' : 'Bookmark this lesson'}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>{isDayCompleted ? 'Day Completed' : 'Mark Complete'}</span>
+              <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-amber-600' : ''}`} />
+              <span className="hidden sm:inline">{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
             </button>
-
-            {notesHistory.length > 0 && (
-              <div className="flex items-center space-x-1.5">
-                <span className="text-[11px] font-medium text-slate-600 uppercase tracking-wider">Version:</span>
-                <select
-                  value={activeVersionId || ''}
-                  onChange={(e) => setActiveVersion(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors"
-                >
-                  {notesHistory.map((item, idx) => (
-                    <option key={item.id} value={item.id}>
-                      V{notesHistory.length - idx} ({new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <button
-              onClick={handleDownloadPdf}
-              disabled={isPdfExporting}
-              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
-              title="Download as PDF"
-            >
-              {isPdfExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              <span>{isPdfExporting ? 'Exporting...' : 'Download PDF'}</span>
-            </button>
-
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[10px] text-slate-400 font-medium">Confuse?</span>
-              <button
-                onClick={onTriggerGenerate}
-                disabled={isLoadingContent}
-                className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-600 text-blue-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
-                title="Confused? Regenerate and refine your notes"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingContent ? 'animate-spin' : ''}`} />
-                <span>Refine Notes</span>
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* Main Content Body */}
-        {generatedContent.script ? (
-          <div className="pt-4 pb-20">
-            <PodcastPlayer
-              topicId={generatedContent.topicId || currentDay?.id || 'demo'}
-              script={generatedContent.script}
-              audioUrl={generatedContent.audioUrl}
-            />
-          </div>
-        ) : (
+        {/* Tab 1: Personal Notes */}
+        {activeTab === 'notes' && currentDay?.id && (
+          <PersonalNotesEditor
+            dayId={currentDay.id}
+            topicTitle={generatedContent?.title || currentDay.title}
+          />
+        )}
+
+        {/* Tab 2: Interactive Assessment Quiz */}
+        {activeTab === 'quiz' && currentDay?.id && (
+          <QuizRunner
+            dayId={currentDay.id}
+            topicTitle={generatedContent?.title || currentDay.title}
+            questions={getQuizQuestions()}
+            onComplete={() => {
+              markDayCompleted(currentDay.id);
+            }}
+          />
+        )}
+
+        {/* Tab 3: Core Study Guide */}
+        {activeTab === 'study' && (
           <>
-            {/* Introduction */}
-            <div className="p-8 bg-blue-50/60 border border-blue-100 rounded-2xl flex gap-6 items-start">
-              <div className="p-3 bg-blue-100 rounded-xl text-blue-600 flex-shrink-0">
-                <BookOpen className="h-6 w-6" />
-              </div>
-              <div className="space-y-3 pt-1">
-                <h3 className="text-sm font-semibold uppercase tracking-widest text-blue-700">Introduction</h3>
-                <p className="text-base leading-relaxed text-slate-700">
-                  {renderParagraphWithHighlights(generatedContent.introduction)}
-                </p>
-              </div>
-            </div>
-
-            {/* Outline / Concepts List */}
-            {generatedContent.outline && generatedContent.outline.length > 0 && (
-              <div className="p-6 bg-transparent border border-slate-100 rounded-2xl space-y-4 mt-6">
-                <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-600 flex items-center gap-2">
-                  <List className="h-5 w-5 text-blue-600" />
-                  Core Concepts Covered
-                </h3>
-                <div className="grid md:grid-cols-2 gap-4 pt-2">
-                  {generatedContent.outline.map((item: string, idx: number) => (
-                    <div key={idx} className="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors">
-                      <span className="h-7 w-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-mono font-bold">{idx + 1}</span>
-                      <span className="text-sm font-medium text-slate-900">{item}</span>
-                    </div>
-                  ))}
+            {/* Header Section */}
+            <div className="border-b border-slate-100 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-md text-xs font-medium text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
+                    Study Notes
+                  </span>
+                  <span className="px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-md text-xs font-medium text-blue-700 uppercase tracking-wider">
+                    {generatedContent.difficulty || 'Intermediate'}
+                  </span>
                 </div>
+                <h1 className="text-3xl font-extrabold text-slate-900 mt-3 leading-tight tracking-[-0.02em]">
+                  {generatedContent.title}
+                </h1>
               </div>
-            )}
 
-            {/* Visual Concept Map / Diagram */}
-            {generatedContent.visualDiagram && (
-              <Mermaid chart={generatedContent.visualDiagram} />
-            )}
+              {/* Actions & Version Switcher */}
+              <div className="print:hidden flex items-center space-x-2.5 self-end md:self-center">
+                <button
+                  onClick={handleMarkComplete}
+                  disabled={isDayCompleted}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isDayCompleted
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 cursor-default'
+                      : 'bg-emerald-600 border border-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs'
+                  }`}
+                  title={isDayCompleted ? 'You have completed this day' : 'Mark this day as complete'}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>{isDayCompleted ? 'Day Completed' : 'Mark Complete'}</span>
+                </button>
 
-            {/* Core Lesson Content Blocks */}
-            <div className="space-y-12 pt-8">
-              {(generatedContent.contentBlocks || []).map((block: any, idx: number) => (
-                <div key={idx} className="space-y-5 group">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-2 w-2 rounded-full bg-blue-600 group-hover:scale-125 transition-transform"></div>
-                    <h2 className="text-2xl font-bold tracking-[-0.01em] text-slate-900">
-                      {block.heading}
-                    </h2>
+                {notesHistory.length > 0 && (
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[11px] font-medium text-slate-600 uppercase tracking-wider">Version:</span>
+                    <select
+                      value={activeVersionId || ''}
+                      onChange={(e) => setActiveVersion(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                    >
+                      {notesHistory.map((item, idx) => (
+                        <option key={item.id} value={item.id}>
+                          V{notesHistory.length - idx} (
+                          {new Date(item.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          )
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                )}
 
-                  <div className="text-[17px] leading-relaxed text-slate-700 space-y-5 pl-5">
-                    {(block.content || '').split('\n\n').map((paragraph: string, pIdx: number) => (
-                      <p key={pIdx}>
-                        {renderParagraphWithHighlights(paragraph)}
-                      </p>
-                    ))}
-                  </div>
-
-                  {/* Optional Code Example Code Editor block — kept dark
-                  intentionally: a dark code editor reads as intentional
-                  IDE chrome even inside an otherwise light document (the
-                  same convention most docs sites use for code blocks). */}
-                  {block.codeExample && (
-                    <div className="ml-5 rounded-xl border border-slate-200 bg-[#1A1A1A] overflow-hidden mt-4 shadow-sm">
-                      {/* IDE header */}
-                      <div className="bg-[#121824] px-4 py-2.5 flex items-center justify-between border-b border-slate-800/50">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-3 h-3 rounded-full bg-rose-500/80"></div>
-                          <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
-                          <div className="w-3 h-3 rounded-full bg-emerald-500/80"></div>
-                          <span className="text-xs font-mono text-slate-500 pl-2 flex items-center gap-1.5">
-                            <Code className="h-3.5 w-3.5 text-blue-400" />
-                            snippet.{block.language || 'code'}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleCopyCode(block.codeExample, idx)}
-                          className="print:hidden flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-md text-xs font-medium tracking-wide transition-all cursor-pointer"
-                        >
-                          {copiedIndex === idx ? (
-                            <>
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                              <span className="text-emerald-400 font-semibold">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5" />
-                              <span>Copy Code</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <pre className="bg-[#0b0f19] p-5 overflow-x-auto font-mono text-xs leading-relaxed text-blue-200 selection:bg-blue-500/30">
-                        <code>{block.codeExample}</code>
-                      </pre>
-                    </div>
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={isPdfExporting}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                  title="Download as PDF"
+                >
+                  {isPdfExporting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
                   )}
+                  <span>{isPdfExporting ? 'Exporting...' : 'Download PDF'}</span>
+                </button>
+
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px] text-slate-400 font-medium">Confused?</span>
+                  <button
+                    onClick={onTriggerGenerate}
+                    disabled={isLoadingContent}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-600 text-blue-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                    title="Confused? Regenerate and refine your notes"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isLoadingContent ? 'animate-spin' : ''}`} />
+                    <span>Refine Notes</span>
+                  </button>
                 </div>
-              ))}
-            </div>
-
-            {/* Conclusion / Summary */}
-            <div className="p-6 bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-2xl flex gap-4 items-start shadow-sm pt-6 mt-8">
-              <div className="p-3 bg-amber-100 border border-amber-200 rounded-xl text-amber-600 flex-shrink-0">
-                <Lightbulb className="h-6 w-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-amber-600">Summary & Takeaways</h3>
-                <p className="text-sm leading-relaxed text-slate-700">
-                  {renderParagraphWithHighlights(generatedContent.summary)}
-                </p>
               </div>
             </div>
 
-            {/* Sources & Citations */}
-            {generatedContent.sources && generatedContent.sources.length > 0 && (
-              <div className="border-t border-slate-100 pt-6">
-                <h4 className="text-xs font-medium text-slate-600 uppercase tracking-widest mb-3">References & RAG Sources</h4>
-                <div className="space-y-2">
-                  {generatedContent.sources.map((src: any, idx: number) => (
-                    <div key={idx} className="flex items-center space-x-2 text-xs">
-                      <span className="text-slate-400 font-mono">[{idx + 1}]</span>
-                      <span className="text-slate-600 font-medium">{src.label}:</span>
-                      {src.url ? (
-                        <a
-                          href={src.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline transition-all"
+            {/* Main Content Body */}
+            {generatedContent.script ? (
+              <div className="pt-4 pb-20">
+                <PodcastPlayer
+                  topicId={generatedContent.topicId || currentDay?.id || 'demo'}
+                  script={generatedContent.script}
+                  audioUrl={generatedContent.audioUrl}
+                />
+              </div>
+            ) : (
+              <>
+                {/* Introduction */}
+                <div className="p-8 bg-blue-50/60 border border-blue-100 rounded-2xl flex gap-6 items-start">
+                  <div className="p-3 bg-blue-100 rounded-xl text-blue-600 shrink-0">
+                    <BookOpen className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-3 pt-1">
+                    <h3 className="text-sm font-semibold uppercase tracking-widest text-blue-700">Introduction</h3>
+                    <p className="text-base leading-relaxed text-slate-700">
+                      {renderParagraphWithHighlights(generatedContent.introduction)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Outline / Concepts List */}
+                {generatedContent.outline && generatedContent.outline.length > 0 && (
+                  <div className="p-6 bg-transparent border border-slate-100 rounded-2xl space-y-4 mt-6">
+                    <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-600 flex items-center gap-2">
+                      <List className="h-5 w-5 text-blue-600" />
+                      Core Concepts Covered
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-4 pt-2">
+                      {generatedContent.outline.map((item: string, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors"
                         >
-                          <span>{src.url}</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <span className="text-slate-500 italic">No URL provided</span>
+                          <span className="h-7 w-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-mono font-bold">
+                            {idx + 1}
+                          </span>
+                          <span className="text-sm font-medium text-slate-900">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Visual Concept Map / Diagram */}
+                {generatedContent.visualDiagram && (
+                  <Mermaid chart={generatedContent.visualDiagram} />
+                )}
+
+                {/* Core Lesson Content Blocks */}
+                <div className="space-y-12 pt-8">
+                  {(generatedContent.contentBlocks || []).map((block: any, idx: number) => (
+                    <div key={idx} className="space-y-5 group">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-2 w-2 rounded-full bg-blue-600 group-hover:scale-125 transition-transform" />
+                        <h2 className="text-2xl font-bold tracking-[-0.01em] text-slate-900">
+                          {block.heading}
+                        </h2>
+                      </div>
+
+                      <div className="text-[17px] leading-relaxed text-slate-700 space-y-5 pl-5">
+                        {(block.content || '').split('\n\n').map((paragraph: string, pIdx: number) => (
+                          <p key={pIdx}>{renderParagraphWithHighlights(paragraph)}</p>
+                        ))}
+                      </div>
+
+                      {/* Code Example */}
+                      {block.codeExample && (
+                        <div className="ml-5 rounded-xl border border-slate-200 bg-[#1A1A1A] overflow-hidden mt-4 shadow-xs">
+                          <div className="bg-[#121824] px-4 py-2.5 flex items-center justify-between border-b border-slate-800/50">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-3 h-3 rounded-full bg-rose-500/80" />
+                              <div className="w-3 h-3 rounded-full bg-amber-500/80" />
+                              <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                              <span className="text-xs font-mono text-slate-500 pl-2 flex items-center gap-1.5">
+                                <Code className="h-3.5 w-3.5 text-blue-400" />
+                                snippet.{block.language || 'code'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleCopyCode(block.codeExample, idx)}
+                              className="print:hidden flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-md text-xs font-medium tracking-wide transition-all cursor-pointer"
+                            >
+                              {copiedIndex === idx ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                  <span className="text-emerald-400 font-semibold">Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3.5 w-3.5" />
+                                  <span>Copy Code</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <pre className="bg-[#0b0f19] p-5 overflow-x-auto font-mono text-xs leading-relaxed text-blue-200 selection:bg-blue-500/30">
+                            <code>{block.codeExample}</code>
+                          </pre>
+                        </div>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
+
+                {/* Conclusion / Summary */}
+                <div className="p-6 bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-2xl flex gap-4 items-start shadow-xs pt-6 mt-8">
+                  <div className="p-3 bg-amber-100 border border-amber-200 rounded-xl text-amber-600 shrink-0">
+                    <Lightbulb className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-widest text-amber-600">
+                      Summary & Takeaways
+                    </h3>
+                    <p className="text-sm leading-relaxed text-slate-700">
+                      {renderParagraphWithHighlights(generatedContent.summary)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sources & Citations */}
+                {generatedContent.sources && generatedContent.sources.length > 0 && (
+                  <div className="border-t border-slate-100 pt-6">
+                    <h4 className="text-xs font-medium text-slate-600 uppercase tracking-widest mb-3">
+                      References & RAG Sources
+                    </h4>
+                    <div className="space-y-2">
+                      {generatedContent.sources.map((src: any, idx: number) => (
+                        <div key={idx} className="flex items-center space-x-2 text-xs">
+                          <span className="text-slate-400 font-mono">[{idx + 1}]</span>
+                          <span className="text-slate-600 font-medium">{src.label}:</span>
+                          {src.url ? (
+                            <a
+                              href={src.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline transition-all"
+                            >
+                              <span>{src.url}</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <span className="text-slate-500 italic">No URL provided</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
-
       </div>
     </div>
   );

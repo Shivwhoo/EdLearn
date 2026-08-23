@@ -5,7 +5,7 @@ export class GeminiProvider implements IAIServiceProvider {
   private client: GoogleGenerativeAI;
   private modelName: string;
 
-  constructor(apiKey?: string, modelName: string = 'gemini-1.5-flash') {
+  constructor(apiKey?: string, modelName: string = 'gemini-3.6-flash') {
     const key = apiKey || process.env.GEMINI_API_KEY;
     this.client = new GoogleGenerativeAI(key || 'placeholder_key_if_not_configured');
     this.modelName = modelName;
@@ -19,7 +19,6 @@ export class GeminiProvider implements IAIServiceProvider {
         generationConfig: {
           temperature: options?.temperature ?? 0.7,
           maxOutputTokens: options?.maxTokens,
-          responseMimeType: options?.jsonMode ? 'application/json' : undefined,
         },
         systemInstruction: options?.systemPrompt,
       });
@@ -40,7 +39,6 @@ export class GeminiProvider implements IAIServiceProvider {
         generationConfig: {
           temperature: options?.temperature ?? 0.7,
           maxOutputTokens: options?.maxTokens,
-          responseMimeType: options?.jsonMode ? 'application/json' : undefined,
         },
         systemInstruction: options?.systemPrompt,
       });

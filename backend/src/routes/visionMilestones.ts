@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import db from '../lib/db';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { aiService } from '../lib/ai/aiService';
 
 /**
  * Vision Milestones API — database-backed roadmap steps tied to a user's
@@ -11,6 +13,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
  * Routes (all relative to /api/vision-milestones):
  *   GET    /              → list all milestones belonging to the caller
  *   POST   /              → create a milestone
+ *   POST   /generate       → AI-generate a career roadmap's worth of milestones
  *   PUT    /:id           → full update
  *   PATCH  /:id/complete  → toggle completed flag
  *   DELETE /:id           → delete
@@ -91,6 +94,170 @@ function validatePayload(body: any): { errors: Record<string, string> } | { data
     },
   };
 }
+
+// AI generation is far more expensive than plain CRUD, so it gets its own,
+// tighter limit rather than sharing whatever's applied to the router as a whole.
+const generateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many roadmap generation requests. Please try again in a few minutes.' },
+});
+
+const MIN_MILESTONES = 5;
+const MAX_MILESTONES = 7;
+const MAX_GOAL_LENGTH = 200;
+
+/** One item as the LLM is asked to return it, before validation/coercion. */
+interface RawGeneratedMilestone {
+  title?: unknown;
+  description?: unknown;
+  targetDate?: unknown;
+}
+
+/**
+ * Validates and coerces one AI-generated milestone into the shape
+ * db.visionMilestone.create() needs. Returns null for an entry that can't be
+ * salvaged (no usable title) rather than throwing — one bad item out of 5-7
+ * shouldn't sink the whole generation.
+ */
+function coerceGeneratedMilestone(
+  raw: RawGeneratedMilestone,
+  fallbackDate: Date
+): { title: string; description: string; targetDate: Date } | null {
+  const title = optStr(raw?.title);
+  if (!title) return null;
+
+  const description = optStr(raw?.description) ?? '';
+
+  let targetDate = fallbackDate;
+  const rawDate = optStr(raw?.targetDate);
+  if (rawDate) {
+    const parsed = new Date(rawDate);
+    if (!Number.isNaN(parsed.getTime())) targetDate = parsed;
+  }
+
+  return {
+    title: title.length > MAX_TITLE ? title.slice(0, MAX_TITLE) : title,
+    description: description.length > MAX_DESC ? description.slice(0, MAX_DESC) : description,
+    targetDate,
+  };
+}
+
+/**
+ * POST /api/vision-milestones/generate
+ * Body: { goal: string } — e.g. "Full Stack Developer"
+ *
+ * Asks the LLM for the 5-7 major milestones on the way to that career goal,
+ * then persists each one as a real VisionMilestone row (not linked to any
+ * specific Vision — this is a freeform goal string, not an existing vision
+ * id) and returns the created rows.
+ */
+router.post('/generate', generateLimiter, async (req: Request, res: Response): Promise<any> => {
+  const userId = (req as AuthenticatedRequest).user!.id;
+
+  const goal = optStr(req.body?.goal);
+  if (!goal) {
+    return res.status(400).json({ error: 'Please describe the career goal you want a roadmap for.' });
+  }
+  if (goal.length > MAX_GOAL_LENGTH) {
+    return res.status(400).json({ error: `Career goal must be ${MAX_GOAL_LENGTH} characters or fewer.` });
+  }
+
+  try {
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+
+    const systemPrompt = `You are an expert career coach and curriculum planner.
+Given a student's long-term career goal, break it down into ${MIN_MILESTONES} to ${MAX_MILESTONES} major milestones required to realistically achieve that goal over time. These are big, sequential milestones (e.g. "Master core fundamentals", "Ship a portfolio project", "Land an internship", "Get your first professional role") — not small day-to-day tasks.
+
+Today's date is ${todayIso}. Space the milestones a few months apart in a realistic, sequential order, starting a few months from today and extending outward as the goal gets more advanced.
+
+You must return your output strictly as a JSON array (not an object, not wrapped in any other key) matching this schema:
+[
+  {
+    "title": "string (short, action-oriented milestone title, under 120 characters)",
+    "description": "string (2-3 sentences on what this milestone involves and why it matters, under 500 characters)",
+    "targetDate": "string (a realistic future date in YYYY-MM-DD format, after ${todayIso})"
+  }
+]
+
+Return between ${MIN_MILESTONES} and ${MAX_MILESTONES} milestones, ordered chronologically by targetDate. Do not wrap the output in markdown code blocks. Return only valid JSON.`;
+
+    const userPrompt = `Career goal: "${goal}"\n\nGenerate the major milestones needed to achieve this career goal.`;
+
+    const responseText = await aiService.generate(userPrompt, {
+      systemPrompt,
+      jsonMode: true,
+      temperature: 0.5,
+      maxTokens: 1536,
+    });
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch (innerErr) {
+        console.error('[api/vision-milestones/generate] AI returned non-JSON output. Raw:', responseText);
+        return res.status(502).json({ error: 'The AI did not return a valid roadmap. Please try again.' });
+      }
+    }
+
+    // Defend against the LLM wrapping the array in an object despite instructions.
+    const rawList: RawGeneratedMilestone[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as any)?.milestones)
+        ? (parsed as any).milestones
+        : [];
+
+    if (rawList.length === 0) {
+      console.error('[api/vision-milestones/generate] AI returned an empty/invalid list. Raw:', responseText);
+      return res.status(502).json({ error: 'The AI did not return any milestones. Please try again.' });
+    }
+
+    // Continue sort order after whatever milestones the user already has,
+    // so generated ones don't all collide at sortOrder 0.
+    const existingCount = await db.visionMilestone.count({ where: { userId } });
+
+    const created: any[] = [];
+    let index = 0;
+    for (const raw of rawList.slice(0, MAX_MILESTONES)) {
+      // Fallback spacing (every 3 months from today) if the AI omits/mangles a date.
+      const fallbackDate = new Date(today);
+      fallbackDate.setMonth(fallbackDate.getMonth() + (index + 1) * 3);
+
+      const coerced = coerceGeneratedMilestone(raw, fallbackDate);
+      if (!coerced) continue;
+
+      const milestone = await db.visionMilestone.create({
+        data: {
+          userId,
+          visionId: null,
+          title: coerced.title,
+          description: coerced.description,
+          targetDate: coerced.targetDate,
+          sortOrder: existingCount + index,
+          completed: false,
+        },
+      });
+      created.push(milestone);
+      index++;
+    }
+
+    if (created.length === 0) {
+      return res.status(502).json({ error: 'The AI did not return any usable milestones. Please try again.' });
+    }
+
+    return res.status(201).json({ success: true, milestones: created });
+  } catch (error) {
+    console.error('[api/vision-milestones/generate] Error:', error);
+    return res.status(500).json({ error: 'Could not generate a career roadmap right now. Please try again.' });
+  }
+});
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 

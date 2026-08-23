@@ -14,6 +14,7 @@ import {
   PlusCircle,
   RefreshCw,
   RotateCcw,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import {
   createMilestone,
   deleteMilestoneApi,
   fetchMilestones,
+  generateCareerMilestones,
   readMilestoneFieldErrors,
   readableError,
   toggleMilestoneComplete,
@@ -133,6 +135,11 @@ export default function VisionRoadmapSection({ visions, token }: Props) {
 
   // ── Collapse completed section ───────────────────────────────────────────────
   const [showCompleted, setShowCompleted] = useState(true);
+
+  // ── Career Roadmap generator state ───────────────────────────────────────────
+  const [careerGoal, setCareerGoal]         = useState('');
+  const [isGenerating, setIsGenerating]     = useState(false);
+  const [generateError, setGenerateError]   = useState('');
 
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -267,6 +274,27 @@ export default function VisionRoadmapSection({ visions, token }: Props) {
     }
   };
 
+  const handleGenerateCareerRoadmap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!careerGoal.trim() || isGenerating) return;
+
+    setIsGenerating(true);
+    setGenerateError('');
+    try {
+      const created = await generateCareerMilestones(token, careerGoal);
+      if (created.length === 0) {
+        setGenerateError("The AI didn't return any milestones. Please try again.");
+        return;
+      }
+      setMilestones((prev) => [...prev, ...created]);
+      setCareerGoal('');
+    } catch (err) {
+      setGenerateError(readableError(err, "We couldn't generate a career roadmap right now. Please try again."));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   const sorted     = sortMilestones(milestones);
@@ -305,6 +333,57 @@ export default function VisionRoadmapSection({ visions, token }: Props) {
           <PlusCircle className="h-4 w-4" />
           Add Milestone
         </button>
+      </div>
+
+      {/* Career Roadmap generator */}
+      <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-blue-50/40 p-5 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4.5 w-4.5 text-indigo-600" />
+          <h3 className="text-sm font-bold text-slate-800">AI Career Roadmap</h3>
+        </div>
+        <p className="mb-4 text-xs leading-relaxed text-slate-500">
+          Tell us your long-term career goal and the AI will lay out the major milestones to get there.
+        </p>
+
+        <form onSubmit={handleGenerateCareerRoadmap} className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex-1">
+            <label className="sr-only" htmlFor="career-goal">
+              Career Goal
+            </label>
+            <input
+              id="career-goal"
+              type="text"
+              value={careerGoal}
+              onChange={(e) => {
+                setCareerGoal(e.target.value);
+                if (generateError) setGenerateError('');
+              }}
+              disabled={isGenerating}
+              placeholder="What is your ultimate career target? e.g. Full Stack Developer"
+              maxLength={200}
+              className={`${inputCls(!!generateError)} disabled:cursor-not-allowed disabled:opacity-60`}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isGenerating || !careerGoal.trim()}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold tracking-[0.01em] text-white shadow-lg shadow-indigo-600/20 transition-all hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Generating…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5" />
+                Generate Career Roadmap
+              </>
+            )}
+          </button>
+        </form>
+
+        {generateError && <FieldError msg={generateError} />}
       </div>
 
       {/* Load error banner */}

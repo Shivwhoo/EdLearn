@@ -32,11 +32,20 @@ import visionBoardRouter from './routes/visionBoard';
 import visionMilestonesRouter from './routes/visionMilestones';
 import authRouter from './routes/auth.router';
 import gdprRouter from './routes/gdpr.router';
+import bookmarksRouter from './routes/bookmarks';
+import searchRouter from './routes/search';
+import analyticsRouter from './routes/analytics';
+import quizRouter from './routes/quiz';
+import notesRouter from './routes/notes';
+import adminRouter from './routes/admin';
+import notificationsRouter from './routes/notifications';
 import flashcardsRouter from './routes/flashcards';
 import certificatesRouter from './routes/certificates';
+import billingRouter, { webhookRouter } from './routes/billing';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
+import { initCronJobs } from './workers/cronJobs';
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -65,6 +74,12 @@ app.use(httpLogger);
 
 // M2: Prometheus request-count/latency instrumentation for every route below.
 app.use(metricsMiddleware);
+
+// CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json()
+// consumes the stream — stripe.webhooks.constructEvent() needs the exact raw
+// bytes to recompute the HMAC signature. Once express.json() parses a body,
+// those raw bytes are gone and signature verification fails on every event.
+app.use('/api/billing', express.raw({ type: 'application/json' }), webhookRouter);
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
 app.use(express.json({ limit: '1mb' }));
@@ -181,8 +196,16 @@ app.use('/api/auth', authRouter);
 app.use('/api/gdpr', gdprRouter);
 
 // --- New production-grade learning platform endpoints ---
+app.use('/api/bookmarks', authenticate, bookmarksRouter);
+app.use('/api/search', searchRouter);
+app.use('/api/progress', authenticate, analyticsRouter);
+app.use('/api/quiz', authenticate, quizRouter);
+app.use('/api/notes', authenticate, notesRouter);
+app.use('/api/admin', authenticate, adminRouter);
+app.use('/api/notifications', authenticate, notificationsRouter);
 app.use('/api/flashcards', authenticate, flashcardsRouter);
 app.use('/api/certificates', certificatesRouter);
+app.use('/api/billing', billingRouter);
 
 // --- Authentication Endpoints ---
 
@@ -781,7 +804,7 @@ Schema:
   "difficulty": "string (difficulty level)",
   "introduction": "string (a thorough, detailed introduction to the topic, setting up context and core motivations)",
   "outline": ["string (key concept 1)", "string (key concept 2)", "string (key concept 3)"],
-  "visualDiagram": "string (a valid Mermaid.js flowchart code, using TD/top-down or LR/left-to-right syntax, mapping out the relationships or logical flow of the concepts. DO NOT include double quotes or backticks inside the labels or nodes to avoid syntax errors; use simple labels. Empty string if not applicable)",
+  "visualDiagram": "string (a valid Mermaid.js flowchart code, using TD/top-down or LR/left-to-right syntax, mapping out the relationships or logical flow of the concepts. If a node label contains special characters, parentheses, or commas, you MUST wrap the label text in double quotes (e.g., A[\"Label (extra info)\"]). Do not use brackets or parentheses inside unquoted labels. Do not use backticks anywhere in the diagram. Empty string if not applicable)",
   "contentBlocks": [
     {
       "heading": "string (sub-topic or concept heading)",
@@ -809,7 +832,7 @@ Important Citation Instructions:
       systemPrompt: systemPrompt,
       jsonMode: true,
       temperature: 0.5,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     // Double-Pass Review (Second Pass)
@@ -822,7 +845,7 @@ Your task is to audit the lesson JSON content below for:
 1. Inaccuracies compared to reference source contexts.
 2. Unexplained technical jargon or shallow explanations (ensure notes are highly detailed and thorough).
 3. Correct placement of citation numbers (e.g. [1], [2]).
-4. Valid Mermaid.js syntax in "visualDiagram" (ensure there are no double quotes, brackets, or backticks inside node labels, and the syntax is correct, e.g. "graph TD" or "graph LR"). Node connection links must not contain arrows inside label blocks (e.g. DO NOT use "-->|label|>", use "-->|label|").
+4. Valid Mermaid.js syntax in "visualDiagram" (the syntax must be correct, e.g. "graph TD" or "graph LR"). If a node label contains special characters, parentheses, or commas, you MUST wrap the label text in double quotes (e.g., A["Label (extra info)"]). Do not use brackets or parentheses inside unquoted labels. Do not use backticks anywhere in the diagram. Node connection links must not contain arrows inside label blocks (e.g. DO NOT use "-->|label|>", use "-->|label|").
 If any issues are found, rewrite and correct them. Ensure the output is strictly valid JSON matching the exact original structure.
 Do not wrap your output in markdown formatting or add extra text. Provide only the clean JSON.`;
 
@@ -836,20 +859,21 @@ ${firstPassResponse}`;
       systemPrompt: reviewSystemPrompt,
       jsonMode: true,
       temperature: 0.3,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     let parsedContent;
     try {
-      parsedContent = JSON.parse(responseText);
-    } catch (e) {
-      const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      try {
-        parsedContent = JSON.parse(cleaned);
-      } catch (innerErr) {
-        console.error('Failed to parse AI output as JSON. Raw:', responseText);
-        return res.status(500).json({ error: 'Failed to format AI response as JSON', raw: responseText });
+      const firstBrace = responseText.indexOf('{');
+      const lastBrace = responseText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        parsedContent = JSON.parse(responseText.substring(firstBrace, lastBrace + 1));
+      } else {
+        parsedContent = JSON.parse(responseText);
       }
+    } catch (e) {
+      console.error('Failed to parse AI output as JSON. Raw:', responseText);
+      return res.status(500).json({ error: 'Failed to format AI response as JSON', raw: responseText });
     }
 
     // Persist in relational database if dayId link exists
@@ -916,15 +940,16 @@ app.post('/api/roadmap', authenticate, validate(RoadmapCreateSchema), async (req
 
     let roadmapData;
     try {
-      roadmapData = JSON.parse(responseText);
-    } catch (e) {
-      const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      try {
-        roadmapData = JSON.parse(cleaned);
-      } catch (innerErr) {
-        console.error('Roadmap JSON parsing failed. Raw:', responseText);
-        return res.status(500).json({ error: 'Failed to format AI response as JSON', raw: responseText });
+      const firstBrace = responseText.indexOf('{');
+      const lastBrace = responseText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        roadmapData = JSON.parse(responseText.substring(firstBrace, lastBrace + 1));
+      } else {
+        roadmapData = JSON.parse(responseText);
       }
+    } catch (e) {
+      console.error('Roadmap JSON parsing failed. Raw:', responseText);
+      return res.status(500).json({ error: 'Failed to format AI response as JSON', raw: responseText });
     }
 
     // C4: The authenticate middleware guarantees req.user.id — no ghost user creation needed
@@ -1420,6 +1445,10 @@ async function startServer() {
     startContentCrons().catch((err) => {
       logger.warn({ err: err?.message || err }, '[ContentCrons] Startup error (non-fatal)');
     });
+    // Wall-clock cron jobs (weekly email digest, Sunday 08:00 UTC). Purely
+    // in-process (node-cron) and synchronous to register — no Redis/DB
+    // dependency, so nothing here can fail startup.
+    initCronJobs();
   });
 }
 

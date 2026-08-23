@@ -109,6 +109,7 @@ function PlayerModal({ item, onClose }: { item: MediaItem; onClose: () => void }
             <button
               onClick={onClose}
               aria-label="Close"
+              suppressHydrationWarning
               className="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors cursor-pointer"
             >
               <X className="h-4 w-4" />
@@ -185,6 +186,7 @@ export default function MediaFeed() {
               <button
                 key={c.key}
                 onClick={() => setCategory(c.key)}
+                suppressHydrationWarning
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   category === c.key
                     ? 'bg-white text-slate-900 shadow-md scale-[1.03]'
@@ -219,6 +221,7 @@ export default function MediaFeed() {
                       key={item.id}
                       onClick={() => setSelected(item)}
                       onMouseMove={trackSpotlight}
+                      suppressHydrationWarning
                       className="spotlight-card fade-up flex-shrink-0 w-[320px] snap-start rounded-2xl bg-white/[0.06] border border-white/10 hover:border-blue-400/40 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-blue-950/50 transition-all duration-300 overflow-hidden backdrop-blur-sm text-left cursor-pointer"
                       style={{ animationDelay: `${Math.min(i, 8) * 60}ms`, ['--spot-color' as string]: 'rgba(96,165,250,0.10)' }}
                     >
@@ -274,6 +277,7 @@ export default function MediaFeed() {
           <button
             aria-label="Scroll left"
             onClick={() => scrollRail(-1)}
+            suppressHydrationWarning
             className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-slate-800 border border-white/15 shadow-lg text-slate-200 hover:text-white hover:bg-blue-600 hover:scale-110 transition-all opacity-0 group-hover/rail:opacity-100 cursor-pointer z-[3]"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -281,6 +285,7 @@ export default function MediaFeed() {
           <button
             aria-label="Scroll right"
             onClick={() => scrollRail(1)}
+            suppressHydrationWarning
             className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-slate-800 border border-white/15 shadow-lg text-slate-200 hover:text-white hover:bg-blue-600 hover:scale-110 transition-all opacity-0 group-hover/rail:opacity-100 cursor-pointer z-[3]"
           >
             <ChevronRight className="h-5 w-5" />

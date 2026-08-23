@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import db from '../lib/db';
 import { AuthenticatedRequest, authenticate } from '../middleware/auth';
+import { generateCertificatePDF } from '../services/certificateService';
 
 const router = Router();
 
@@ -74,6 +75,48 @@ router.post('/issue', authenticate, async (req: Request, res: Response): Promise
   } catch (error) {
     console.error('[api/certificates/issue] Error:', error);
     return res.status(500).json({ error: 'Failed to issue certificate.' });
+  }
+});
+
+/**
+ * GET /api/certificates/:id/download
+ * Render the certificate as a PDF diploma and stream it back inline
+ * (opens in-browser rather than forcing a "Save As" dialog).
+ * Only the certificate's owner may download it.
+ */
+router.get('/:id/download', authenticate, async (req: Request, res: Response): Promise<any> => {
+  const userId = (req as AuthenticatedRequest).user!.id;
+  try {
+    const id = String(req.params.id);
+
+    const certificate = await db.certificate.findUnique({
+      where: { id },
+      include: {
+        user: { select: { email: true, profile: { select: { fullName: true } } } },
+        roadmap: { select: { title: true } }
+      }
+    });
+
+    if (!certificate || certificate.userId !== userId) {
+      return res.status(404).json({ error: 'Certificate not found or access denied.' });
+    }
+
+    const studentName = certificate.user.profile?.fullName || certificate.user.email.split('@')[0];
+
+    const pdfBuffer = await generateCertificatePDF(
+      studentName,
+      certificate.roadmap.title,
+      certificate.sha256Hash,
+      certificate.issuedAt
+    );
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="certificate-${certificate.id}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[api/certificates/download] Error:', error);
+    return res.status(500).json({ error: 'Failed to generate certificate PDF.' });
   }
 });
 

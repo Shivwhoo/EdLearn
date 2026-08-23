@@ -10,13 +10,18 @@
  *
  * Each fetcher is also fired once shortly after startup so a fresh
  * database gets populated immediately (fetchers no-op without API keys).
+ *
+ * NOTE: the weekly email digest is intentionally NOT in this list. These
+ * jobs are "every N ms since whichever moment the server booted", which
+ * can't express "every Sunday at 08:00 UTC" and would also re-fire on every
+ * restart via runAllOnceSoon() below. The digest is scheduled separately as
+ * a real wall-clock cron in workers/cronJobs.ts.
  */
 import { Queue, Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { runNewsFetch } from './newsCron';
 import { runMediaFetch } from './mediaCron';
 import { runBooksFetch } from './booksCron';
-import { runEmailDigest } from './emailDigestCron';
 
 const REDIS_URL = process.env.BULLMQ_REDIS_URL || 'redis://localhost:6379';
 
@@ -24,7 +29,6 @@ const JOBS: Array<{ name: string; everyMs: number; run: () => Promise<void> }> =
   { name: 'fetch-news', everyMs: 3 * 60 * 60 * 1000, run: runNewsFetch },
   { name: 'fetch-media', everyMs: 6 * 60 * 60 * 1000, run: runMediaFetch },
   { name: 'fetch-books', everyMs: 24 * 60 * 60 * 1000, run: runBooksFetch },
-  { name: 'email-digest', everyMs: 7 * 24 * 60 * 60 * 1000, run: runEmailDigest },
 ];
 
 function startIntervalFallback(): void {

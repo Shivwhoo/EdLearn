@@ -1,13 +1,16 @@
 import { Router, Request, Response } from 'express';
 import db from '../lib/db';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { calculateSM2 } from '../services/sm2Service';
+import { reviewFlashcard } from '../services/sm2Service';
 
 const router = Router();
 
 /**
  * GET /api/flashcards/due
  * Retrieve flashcards due for review for the current user.
+ * Due-ness now lives on the related FlashcardProgress row (nextReview), not
+ * on Flashcard itself. A flashcard with no FlashcardProgress row yet (never
+ * reviewed) is treated as due.
  */
 router.get('/due', async (req: Request, res: Response): Promise<any> => {
   const userId = (req as AuthenticatedRequest).user!.id;
@@ -15,12 +18,14 @@ router.get('/due', async (req: Request, res: Response): Promise<any> => {
     const flashcards = await db.flashcard.findMany({
       where: {
         userId,
-        dueDate: {
-          lte: new Date(),
-        },
+        OR: [
+          { progress: null },
+          { progress: { nextReview: { lte: new Date() } } },
+        ],
       },
+      include: { progress: true },
       orderBy: {
-        dueDate: 'asc',
+        createdAt: 'asc',
       },
       take: 100, // Limit to 100 due cards at a time
     });
@@ -35,6 +40,8 @@ router.get('/due', async (req: Request, res: Response): Promise<any> => {
 /**
  * POST /api/flashcards/review
  * Submit a review score for a flashcard and update its SM-2 scheduling.
+ * SM-2 state (easeFactor, interval, repetitions, nextReview) is read from
+ * and written to the FlashcardProgress table, not Flashcard.
  * Body: { flashcardId: string, quality: number (0-5) }
  */
 router.post('/review', async (req: Request, res: Response): Promise<any> => {
@@ -46,32 +53,13 @@ router.post('/review', async (req: Request, res: Response): Promise<any> => {
       return res.status(400).json({ error: 'Missing or invalid parameters: flashcardId, quality (0-5).' });
     }
 
-    const flashcard = await db.flashcard.findUnique({
-      where: { id: flashcardId },
-    });
+    const progress = await reviewFlashcard(userId, flashcardId, quality);
 
-    if (!flashcard || flashcard.userId !== userId) {
+    if (!progress) {
       return res.status(404).json({ error: 'Flashcard not found or access denied.' });
     }
 
-    const nextSM2 = calculateSM2(
-      quality,
-      flashcard.easeFactor,
-      flashcard.interval,
-      flashcard.repetitions
-    );
-
-    const updatedFlashcard = await db.flashcard.update({
-      where: { id: flashcardId },
-      data: {
-        easeFactor: nextSM2.easeFactor,
-        interval: nextSM2.interval,
-        repetitions: nextSM2.repetitions,
-        dueDate: nextSM2.dueDate,
-      },
-    });
-
-    return res.json({ success: true, flashcard: updatedFlashcard });
+    return res.json({ success: true, progress });
   } catch (error) {
     console.error('[api/flashcards/review] Error:', error);
     return res.status(500).json({ error: 'Failed to record flashcard review.' });

@@ -57,6 +57,7 @@ function NewsModal({ article, onClose }: { article: NewsArticle; onClose: () => 
           <button
             onClick={onClose}
             aria-label="Close"
+            suppressHydrationWarning
             className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-slate-900/60 hover:bg-slate-900/80 text-white backdrop-blur transition-all cursor-pointer border border-white/20"
           >
             <X className="h-4 w-4" />
@@ -169,6 +170,7 @@ export default function NewsFeed() {
             <button
               key={c.key}
               onClick={() => setCategory(c.key)}
+              suppressHydrationWarning
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 category === c.key
                   ? 'bg-slate-900 text-white shadow-md scale-[1.03]'
@@ -200,6 +202,7 @@ export default function NewsFeed() {
                   key={a.id}
                   onClick={() => setSelected(a)}
                   onMouseMove={trackSpotlight}
+                  suppressHydrationWarning
                   className="spotlight-card star-border fade-up flex-shrink-0 w-[300px] snap-start rounded-2xl bg-white shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 overflow-hidden text-left cursor-pointer"
                   style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
                 >
@@ -243,6 +246,7 @@ export default function NewsFeed() {
         <button
           aria-label="Scroll left"
           onClick={() => scrollRail(-1)}
+          suppressHydrationWarning
           className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white border border-slate-200 shadow-lg text-slate-600 hover:text-blue-600 hover:scale-110 transition-all opacity-0 group-hover/rail:opacity-100 cursor-pointer z-[3]"
         >
           <ChevronLeft className="h-5 w-5" />
@@ -250,6 +254,7 @@ export default function NewsFeed() {
         <button
           aria-label="Scroll right"
           onClick={() => scrollRail(1)}
+          suppressHydrationWarning
           className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white border border-slate-200 shadow-lg text-slate-600 hover:text-blue-600 hover:scale-110 transition-all opacity-0 group-hover/rail:opacity-100 cursor-pointer z-[3]"
         >
           <ChevronRight className="h-5 w-5" />

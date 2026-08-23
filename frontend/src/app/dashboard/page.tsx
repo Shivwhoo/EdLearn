@@ -18,11 +18,15 @@ import {
   ChevronDown,
   Award,
   Flame,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import axios from 'axios';
 import BadgeDetailModal from '@/components/Document/BadgeDetailModal';
 import Sidebar from '@/components/Layout/Sidebar';
+import StreakBadge from '@/components/Dashboard/StreakBadge';
+import ActivityHeatmap from '@/components/Dashboard/ActivityHeatmap';
+import VisionBoardModal from '@/components/VisionBoard/VisionBoardModal';
 
 // --- Trending Skills: curation, categories & helpers -----------------------
 
@@ -111,6 +115,11 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Vision Board popup — opened either from the shortcut card in the right
+  // rail or from the dismissable reminder banner below.
+  const [visionBoardOpen, setVisionBoardOpen] = useState(false);
+  const [reminderDismissed, setReminderDismissed] = useState(false);
+
   // Trending Skills widget state
   const [trends, setTrends] = useState<any[]>([]);
   const [isTrendsLoading, setIsTrendsLoading] = useState(true);
@@ -121,6 +130,7 @@ export default function DashboardPage() {
   const [isFactsLoading, setIsFactsLoading] = useState(true);
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
   const [isFactExpanded, setIsFactExpanded] = useState(false);
+  const [analytics, setAnalytics] = useState<any>(null);
 
   // ✅ Helper to get token from store OR localStorage
   const getAuthToken = () => {
@@ -159,10 +169,15 @@ export default function DashboardPage() {
       setIsLoading(true);
       setErrorMsg('');
       try {
-        console.log('📡 Fetching dashboard data...');
-        const res = await axios.get('/api/dashboard/summary', {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
+        const [res, analyticsRes] = await Promise.all([
+          axios.get('/api/dashboard/summary', {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }),
+          axios.get('/api/progress/analytics', {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }).catch(() => ({ data: { success: false } })),
+        ]);
+
         if (res.data?.success) {
           console.log('✅ Data loaded successfully');
           setRoadmaps(res.data.roadmaps || []);
@@ -172,15 +187,20 @@ export default function DashboardPage() {
         } else {
           setErrorMsg('Failed to load user progress details.');
         }
+
+        if (analyticsRes?.data?.success) {
+          setAnalytics(analyticsRes.data.analytics);
+        }
       } catch (err: any) {
-        console.error('Failed to load dashboard summary:', err);
-        // If token is expired/invalid, clear it and force re-login
+        // If token is expired/invalid, clear it and force re-login quietly
         if (err.response?.status === 401) {
           logout();
           localStorage.removeItem('edlearn_token');
           router.push('/login');
           return;
         }
+        
+        console.error('Failed to load dashboard summary:', err);
         setErrorMsg(err.response?.data?.error || 'Could not communicate with backend database.');
       } finally {
         setIsLoading(false);
@@ -207,8 +227,10 @@ export default function DashboardPage() {
         if (res.data?.success) {
           setTrends(res.data.trends || []);
         }
-      } catch (err) {
-        console.warn('Failed to load market demand trends:', err);
+      } catch (err: any) {
+        if (err.response?.status !== 401) {
+          console.warn('Failed to load market demand trends:', err);
+        }
       } finally {
         setIsTrendsLoading(false);
       }
@@ -235,8 +257,10 @@ export default function DashboardPage() {
           setCurrentFactIndex(0);
           setIsFactExpanded(false);
         }
-      } catch (err) {
-        console.warn('Failed to load facts feed:', err);
+      } catch (err: any) {
+        if (err.response?.status !== 401) {
+          console.warn('Failed to load facts feed:', err);
+        }
       } finally {
         setIsFactsLoading(false);
       }
@@ -357,6 +381,47 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {/* Vision Board reminder — dismissable for this visit; reappears next
+            time the dashboard loads. Opens the same VisionBoardModal as the
+            shortcut card below and the Sidebar's "Vision Board" nav button. */}
+        {!reminderDismissed && (
+          <div className="relative flex flex-col gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 p-5 shadow-lg shadow-blue-600/20 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3 pr-8 sm:items-center">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
+                <Sparkles className="h-4.5 w-4.5" />
+              </span>
+              <p className="text-sm font-medium leading-relaxed text-white">
+                Keep your goals in sight! Take a moment to review your Vision Board.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <button
+                onClick={() => setVisionBoardOpen(true)}
+                className="whitespace-nowrap rounded-xl bg-white px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all hover:bg-blue-50 active:scale-95 cursor-pointer"
+              >
+                Review Vision Board
+              </button>
+            </div>
+            <button
+              onClick={() => setReminderDismissed(true)}
+              aria-label="Dismiss reminder"
+              className="absolute right-3 top-3 rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Streak & Consistency Badge */}
+        {analytics && (
+          <StreakBadge
+            currentStreak={analytics.currentStreak}
+            longestStreak={analytics.longestStreak}
+            weeklyCompletedDays={analytics.weeklyCompletedDays}
+            weeklyTarget={analytics.weeklyTarget}
+          />
+        )}
+
         {errorMsg && (
           <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs">
             {errorMsg}
@@ -373,10 +438,24 @@ export default function DashboardPage() {
 
             {/* Left/Center Panel - Active roadmaps list */}
             <div className="lg:col-span-2 space-y-6">
-              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-blue-600" />
-                <span>Active Learning Paths</span>
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-blue-600" />
+                  <span>Active Learning Paths</span>
+                </h2>
+
+                {/* Dedicated, standalone roadmap generator — see /roadmap.
+                    Separate from onboarding (first-time profile setup) and
+                    from the Vision Board (goal-tracking only, no roadmap
+                    generation there anymore). */}
+                <button
+                  onClick={() => router.push('/roadmap')}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold tracking-[0.01em] transition-all shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span>Create New Roadmap</span>
+                </button>
+              </div>
 
               {roadmaps.length === 0 ? (
                 <div className="p-8 bg-white border border-slate-100 shadow-sm rounded-2xl text-center space-y-4">
@@ -465,10 +544,10 @@ export default function DashboardPage() {
                 10 minutes (see the rotation useEffect above). Was Study Guide
                 History; that moved to the full-width slot below. */}
             <div className="space-y-6">
-              {/* Vision Board shortcut — jumps to the student's private board
-                  of learning/career goals (see /vision-board). */}
+              {/* Vision Board shortcut — opens VisionBoardModal, the
+                  student's private board of learning/career goals. */}
               <button
-                onClick={() => router.push('/vision-board')}
+                onClick={() => setVisionBoardOpen(true)}
                 className="w-full text-left bg-gradient-to-br from-blue-600 to-violet-600 rounded-2xl p-6 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 hover:-translate-y-0.5 transition-all cursor-pointer group"
               >
                 <div className="flex items-center gap-2 text-white/90">
@@ -524,6 +603,16 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Study Activity Heatmap */}
+            {analytics && analytics.activityHeatmap && (
+              <div className="lg:col-span-3">
+                <ActivityHeatmap
+                  heatmapData={analytics.activityHeatmap}
+                  totalCompletions={analytics.totalCompletions}
+                />
+              </div>
+            )}
 
             {/* Earned Badges — course-completion rewards from the Badge table */}
             <div className="lg:col-span-3 bg-white border border-slate-100 shadow-sm rounded-2xl p-6 space-y-4">
@@ -678,6 +767,9 @@ export default function DashboardPage() {
 
       {/* Badge detail popup (opens when a badge card is clicked) */}
       <BadgeDetailModal badge={viewBadge} onClose={() => setViewBadge(null)} />
+
+      {/* Vision Board popup — opened from the reminder banner or the shortcut card above */}
+      <VisionBoardModal isOpen={visionBoardOpen} onClose={() => setVisionBoardOpen(false)} />
       </main>
     </>
   );

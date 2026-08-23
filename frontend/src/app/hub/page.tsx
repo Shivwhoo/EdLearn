@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { redirectToApp, SsoApp } from '@/lib/ssoHandoff';
 import Sidebar from '@/components/Layout/Sidebar';
+import { timeAgo, youtubeId } from '@/lib/content';
 
 // NOTE: EdMentor / EdCompass haven't confirmed what they can share back
 // with EdLearn yet (no cross-app access/credentials), so there's nothing

@@ -1,8 +1,10 @@
+import db from '../lib/db';
+
 export interface SM2Result {
   easeFactor: number;
   interval: number;
   repetitions: number;
-  dueDate: Date;
+  nextReview: Date;
 }
 
 /**
@@ -45,13 +47,64 @@ export function calculateSM2(
     nextEaseFactor = 1.3;
   }
 
-  const dueDate = new Date();
-  dueDate.setDate(dueDate.getDate() + nextInterval);
+  const nextReview = new Date();
+  nextReview.setDate(nextReview.getDate() + nextInterval);
 
   return {
     easeFactor: nextEaseFactor,
     interval: nextInterval,
     repetitions: nextRepetitions,
-    dueDate
+    nextReview
   };
+}
+
+/**
+ * Process an SM-2 review for a flashcard and persist the result on
+ * FlashcardProgress (SM-2 state no longer lives on Flashcard itself).
+ *
+ * Scoped to `userId` — will not read or update another user's flashcard.
+ * If no FlashcardProgress row exists yet for this flashcard (e.g. it was
+ * never reviewed before), one is created using the SM-2 defaults.
+ *
+ * @returns the updated FlashcardProgress row, or `null` if the flashcard
+ *          doesn't exist or doesn't belong to `userId`.
+ */
+export async function reviewFlashcard(userId: string, flashcardId: string, quality: number) {
+  const flashcard = await db.flashcard.findFirst({
+    where: { id: flashcardId, userId },
+    include: { progress: true }
+  });
+
+  if (!flashcard) {
+    return null;
+  }
+
+  const current = flashcard.progress;
+
+  const result = calculateSM2(
+    quality,
+    current?.easeFactor,
+    current?.interval,
+    current?.repetitions
+  );
+
+  const progress = await db.flashcardProgress.upsert({
+    where: { flashcardId },
+    create: {
+      flashcardId,
+      userId,
+      easeFactor: result.easeFactor,
+      interval: result.interval,
+      repetitions: result.repetitions,
+      nextReview: result.nextReview
+    },
+    update: {
+      easeFactor: result.easeFactor,
+      interval: result.interval,
+      repetitions: result.repetitions,
+      nextReview: result.nextReview
+    }
+  });
+
+  return progress;
 }
