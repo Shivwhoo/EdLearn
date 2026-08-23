@@ -191,20 +191,36 @@ Return between ${MIN_MILESTONES} and ${MAX_MILESTONES} milestones, ordered chron
       systemPrompt,
       jsonMode: true,
       temperature: 0.5,
-      maxTokens: 1536,
+      maxTokens: 8192,
     });
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(responseText);
-    } catch {
-      const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch (innerErr) {
-        console.error('[api/vision-milestones/generate] AI returned non-JSON output. Raw:', responseText);
-        return res.status(502).json({ error: 'The AI did not return a valid roadmap. Please try again.' });
+      // Robust JSON extraction for arrays: find first '[' and last ']'
+      let firstBracket = responseText.indexOf('[');
+      let lastBracket = responseText.lastIndexOf(']');
+      
+      // Also try braces in case the LLM wrapped it in an object like { milestones: [...] }
+      let firstBrace = responseText.indexOf('{');
+      let lastBrace = responseText.lastIndexOf('}');
+      
+      let toParse = responseText;
+      
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        // If it looks like an array, prefer the array bounds unless the object bounds tightly wrap it
+        if (firstBrace !== -1 && firstBrace < firstBracket && lastBrace > lastBracket) {
+          toParse = responseText.substring(firstBrace, lastBrace + 1);
+        } else {
+          toParse = responseText.substring(firstBracket, lastBracket + 1);
+        }
+      } else if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        toParse = responseText.substring(firstBrace, lastBrace + 1);
       }
+      
+      parsed = JSON.parse(toParse);
+    } catch (err) {
+      console.error('[api/vision-milestones/generate] AI returned non-JSON output. Raw:', responseText);
+      return res.status(502).json({ error: 'The AI did not return a valid roadmap. Please try again.' });
     }
 
     // Defend against the LLM wrapping the array in an object despite instructions.
