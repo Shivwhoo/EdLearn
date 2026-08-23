@@ -24,11 +24,16 @@ model User {
   visions             Vision[]
   bookmarks           Bookmark[]
   quizAttempts        QuizAttempt[]
+  quizzes             Quiz[]
   notes               Note[]
   notifications       Notification[]
   flashcards          Flashcard[]
   flashcardProgresses FlashcardProgress[]
   certificates        Certificate[]
+  studyActivities     StudyActivity[]
+  xp                  Int                  @default(0)
+  streakCount         Int                  @default(0)
+  lastActivityDate    DateTime?
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   twoFactorSecret     TwoFactorSecret?
@@ -147,6 +152,7 @@ model Topic {
   createdAt   DateTime    @default(now())
   citations   Citation[]
   day         Day         @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  quizzes     Quiz[]
   flashcards  Flashcard[]
 }
 
@@ -345,17 +351,48 @@ model Bookmark {
   @@index([userId, itemType])
 }
 
+model Quiz {
+  id        String   @id @default(uuid())
+  userId    String
+  topicId   String
+  createdAt DateTime @default(now())
+
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+}
+
+model Question {
+  id           String   @id @default(uuid())
+  quizId       String
+  questionText String
+  options      String[]
+  correctIndex Int
+  explanation  String?  @db.Text
+  order        Int      @default(0)
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
 /// Recorded quiz submissions and scoring history.
 model QuizAttempt {
   id             String   @id @default(uuid())
+  quizId         String?
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dayId          String
+  dayId          String?
   topicId        String?
   score          Int
-  totalQuestions Int
-  answers        Json
+  totalQuestions Int?
+  answers        Json?
+  completedAt    DateTime?
   createdAt      DateTime @default(now())
+  
+  quiz Quiz? @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, dayId])
@@ -437,4 +474,18 @@ model Certificate {
 
   @@unique([userId, roadmapId])
   @@index([sha256Hash])
+}
+
+model StudyActivity {
+  id           String   @id @default(uuid())
+  userId       String
+  activityType String // e.g., 'QUIZ_COMPLETED', 'FLASHCARD_REVIEWED'
+  xpAwarded    Int
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }

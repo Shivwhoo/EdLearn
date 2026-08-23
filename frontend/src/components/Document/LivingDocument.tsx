@@ -2,32 +2,20 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import {
-  BookOpen,
-  RefreshCw,
-  Copy,
-  Check,
-  Lightbulb,
-  List,
-  FileText,
-  ExternalLink,
-  Code,
-  Download,
-  Loader2,
-  CheckCircle2,
-  Bookmark,
-  Edit3,
-  Sparkles,
-  HelpCircle,
-} from 'lucide-react';
+import PersonalNotesEditor from './PersonalNotesEditor';
+import QuizRunner, { QuizQuestion } from '../Assessment/QuizRunner';
+import QuickCheckModal from './QuickCheckModal';
+import FlashcardsModal from './FlashcardsModal';
 import confetti from 'canvas-confetti';
 import axios from 'axios';
 import Mermaid from './Mermaid';
 import { PodcastPlayer } from './PodcastPlayer';
 import { exportNotesPdf } from '@/lib/exportPdf';
-import PersonalNotesEditor from './PersonalNotesEditor';
-import QuizRunner, { QuizQuestion } from '../Assessment/QuizRunner';
-
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
+  const [isQuickCheckOpen, setIsQuickCheckOpen] = useState(false);
+  const [isFlashcardsOpen, setIsFlashcardsOpen] = useState(false);
 interface LivingDocumentProps {
   onTriggerGenerate: () => void;
   sentenceRef: React.MutableRefObject<string[]>;
@@ -54,9 +42,51 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
   const [activeTab, setActiveTab] = useState<'study' | 'notes' | 'quiz'>('study');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showCompletedToast, setShowCompletedToast] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isBookmarking, setIsBookmarking] = useState(false);
-  const [isPdfExporting, setIsPdfExporting] = useState(false);
+            {notesHistory.length > 0 && (
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[11px] font-medium text-slate-600 uppercase tracking-wider">Version:</span>
+                <select
+                  value={activeVersionId || ''}
+                  onChange={(e) => setActiveVersion(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors"
+                >
+                  {notesHistory.map((item, idx) => (
+                    <option key={item.id} value={item.id}>
+                      V{notesHistory.length - idx} ({new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isPdfExporting}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Download as PDF"
+            >
+              {isPdfExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              <span>{isPdfExporting ? 'Exporting...' : 'PDF'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsFlashcardsOpen(true)}
+              disabled={!activeVersionId}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Study Flashcards"
+            >
+              <Brain className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Flashcards</span>
+            </button>
+            <button
+              onClick={() => setIsQuickCheckOpen(true)}
+              disabled={!activeVersionId}
+              className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 border border-teal-200 hover:bg-teal-600 text-teal-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Quick Quiz"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Quick Check</span>
+            </button>
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasMarkedRef = useRef(false);
 
@@ -430,6 +460,69 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
               <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-amber-600' : ''}`} />
               <span className="hidden sm:inline">{isBookmarked ? 'Bookmarked' : 'Bookmark'}</span>
             </button>
+<<<<<<< HEAD
+=======
+
+            {notesHistory.length > 0 && (
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[11px] font-medium text-slate-600 uppercase tracking-wider">Version:</span>
+                <select
+                  value={activeVersionId || ''}
+                  onChange={(e) => setActiveVersion(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-colors"
+                >
+                  {notesHistory.map((item, idx) => (
+                    <option key={item.id} value={item.id}>
+                      V{notesHistory.length - idx} ({new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isPdfExporting}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Download as PDF"
+            >
+              {isPdfExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              <span>{isPdfExporting ? 'Exporting...' : 'PDF'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsFlashcardsOpen(true)}
+              disabled={!activeVersionId}
+              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Review Flashcards"
+            >
+              <Brain className="h-3.5 w-3.5" />
+              <span>Flashcards</span>
+            </button>
+
+            <button
+              onClick={() => setIsQuickCheckOpen(true)}
+              disabled={!activeVersionId}
+              className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-500 text-amber-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+              title="Quick Check Micro-assessment"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <span>Quick Check</span>
+            </button>
+
+            <div className="flex flex-col items-center gap-0.5 ml-2">
+              <span className="text-[10px] text-slate-400 font-medium">Confuse?</span>
+              <button
+                onClick={onTriggerGenerate}
+                disabled={isLoadingContent}
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-600 text-blue-700 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                title="Confused? Regenerate and refine your notes"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoadingContent ? 'animate-spin' : ''}`} />
+                <span>Refine Notes</span>
+              </button>
+            </div>
+>>>>>>> origin/main
           </div>
         </div>
 
@@ -697,6 +790,22 @@ export const LivingDocument: React.FC<LivingDocumentProps> = ({ onTriggerGenerat
           </>
         )}
       </div>
+
+      {activeVersionId && (
+        <QuickCheckModal 
+          topicId={activeVersionId} 
+          isOpen={isQuickCheckOpen} 
+          onClose={() => setIsQuickCheckOpen(false)} 
+        />
+      )}
+      
+      {activeVersionId && (
+        <FlashcardsModal 
+          topicId={activeVersionId} 
+          isOpen={isFlashcardsOpen} 
+          onClose={() => setIsFlashcardsOpen(false)} 
+        />
+      )}
     </div>
   );
 };

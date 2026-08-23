@@ -163,6 +163,26 @@ body {
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 }
 
+/* Text Selection */
+::selection {
+  background-color: rgba(37, 99, 235, 0.2); /* tailwind blue-600 with opacity */
+  color: inherit;
+}
+
+/* 3D transforms for Flashcards */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
 /* Subtle border pulse for active blocks instead of aggressive neon glow */
 
 /* Liquid glass effect used on the cinematic landing hero */

@@ -1,7 +1,8 @@
 import { IAIServiceProvider, GenerateOptions } from './types';
 import { GroqProvider } from './providers/groqProvider';
 import { GeminiProvider } from './providers/geminiProvider';
-import { logger } from '../logger';
+import { GroqProvider } from './providers/groqProvider';
+import { GeminiProvider } from './providers/geminiProvider';
 
 export class AIService implements IAIServiceProvider {
   private activeProvider: IAIServiceProvider | null = null;
@@ -110,6 +111,64 @@ export class AIService implements IAIServiceProvider {
       } catch {
         throw primaryError;
       }
+    }
+  }
+
+  async generateQuiz(topicContent: string): Promise<z.infer<typeof QuizSchema>['questions']> {
+    const prompt = `You are an expert educator. Generate a 3-question multiple choice quiz based on the following topic content.
+Return ONLY strict JSON matching this schema: { "questions": [{ "questionText": "...", "options": ["...", "...", "...", "..."], "correctIndex": 0, "explanation": "..." }] }.
+Content: ${topicContent}`;
+
+    let response = await this.generate(prompt, { jsonMode: true });
+    try {
+      const parsed = JSON.parse(response);
+      return QuizSchema.parse(parsed).questions;
+    } catch (e) {
+      console.warn('AI failed strict validation for quiz, retrying once...', e);
+      const retryPrompt = `${prompt}\n\nCRITICAL: You must return valid JSON with exactly 3 questions, 4 options each, and a numeric correctIndex (0-3).`;
+      response = await this.generate(retryPrompt, { jsonMode: true });
+      const parsed = JSON.parse(response);
+      return QuizSchema.parse(parsed).questions;
+    }
+  }
+
+  async generateFlashcards(topicContent: string): Promise<z.infer<typeof FlashcardsSchema>['flashcards']> {
+    const prompt = `You are an expert educator. Generate 5-10 spaced-repetition flashcards based on the following topic content.
+Return ONLY strict JSON matching this schema: { "flashcards": [{ "front": "...", "back": "..." }] }.
+Content: ${topicContent}`;
+
+    let response = await this.generate(prompt, { jsonMode: true });
+    try {
+      const parsed = JSON.parse(response);
+      return FlashcardsSchema.parse(parsed).flashcards;
+    } catch (e) {
+      console.warn('AI failed strict validation for flashcards, retrying once...', e);
+      const retryPrompt = `${prompt}\n\nCRITICAL: You must return valid JSON with 5 to 10 flashcards containing 'front' and 'back' string fields.`;
+      response = await this.generate(retryPrompt, { jsonMode: true });
+      const parsed = JSON.parse(response);
+      return FlashcardsSchema.parse(parsed).flashcards;
+    }
+  }
+
+  async evaluateFlashcardAnswer(question: string, expectedAnswer: string, userAnswer: string): Promise<z.infer<typeof EvaluationSchema>> {
+    const prompt = `You are a strict but fair tutor evaluating a flashcard answer.
+Question: ${question}
+Expected Answer: ${expectedAnswer}
+Student's Typed Answer: ${userAnswer}
+
+Determine if the student's answer demonstrates correct understanding. Be forgiving of minor typos or phrasing differences, but strict on core concepts.
+Return ONLY strict JSON matching this schema: { "isCorrect": boolean, "explanation": "A short 1-2 sentence explanation of why it is correct or incorrect." }`;
+
+    let response = await this.generate(prompt, { jsonMode: true, temperature: 0.1 });
+    try {
+      const parsed = JSON.parse(response);
+      return EvaluationSchema.parse(parsed);
+    } catch (e) {
+      console.warn('AI failed strict validation for flashcard evaluation, retrying once...', e);
+      const retryPrompt = `${prompt}\n\nCRITICAL: You must return valid JSON with boolean 'isCorrect' and string 'explanation'.`;
+      response = await this.generate(retryPrompt, { jsonMode: true, temperature: 0.1 });
+      const parsed = JSON.parse(response);
+      return EvaluationSchema.parse(parsed);
     }
   }
 }

@@ -31,21 +31,17 @@ import booksRouter from './routes/books';
 import visionBoardRouter from './routes/visionBoard';
 import visionMilestonesRouter from './routes/visionMilestones';
 import authRouter from './routes/auth.router';
-import gdprRouter from './routes/gdpr.router';
-import bookmarksRouter from './routes/bookmarks';
-import searchRouter from './routes/search';
-import analyticsRouter from './routes/analytics';
 import quizRouter from './routes/quiz';
-import notesRouter from './routes/notes';
-import adminRouter from './routes/admin';
-import notificationsRouter from './routes/notifications';
+import flashcardRouter from './routes/flashcards';
+import gdprRouter from './routes/gdpr.router';
 import flashcardsRouter from './routes/flashcards';
-import certificatesRouter from './routes/certificates';
+import quizRouter from './routes/quiz';
 import billingRouter, { webhookRouter } from './routes/billing';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
-import { initCronJobs } from './workers/cronJobs';
+app.use('/api/flashcards', flashcardsRouter);
+app.use('/api/quiz', quizRouter);
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -75,10 +71,14 @@ app.use(httpLogger);
 // M2: Prometheus request-count/latency instrumentation for every route below.
 app.use(metricsMiddleware);
 
+<<<<<<< HEAD
 // CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json()
 // consumes the stream — stripe.webhooks.constructEvent() needs the exact raw
 // bytes to recompute the HMAC signature. Once express.json() parses a body,
 // those raw bytes are gone and signature verification fails on every event.
+=======
+// CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json consumes the stream
+>>>>>>> origin/main
 app.use('/api/billing', express.raw({ type: 'application/json' }), webhookRouter);
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
@@ -186,6 +186,7 @@ app.use('/api/books', booksRouter);
 // queries to that id. Unauthenticated requests never reach the handlers.
 app.use('/api/vision-board', authenticate, visionBoardRouter);
 app.use('/api/vision-milestones', authenticate, visionMilestonesRouter);
+
 
 // --- Auth router (signup, login, refresh, 2FA, forgot/reset-password) ---
 // This router supersedes the inline /api/auth/* handlers below for new features.
@@ -1380,6 +1381,12 @@ Respond with ONLY the single label word — no punctuation, no explanation, no J
     res.json({ success: true, label: 'learn' });
   }
 });
+
+// --- Quiz & Flashcard routers ---
+app.use('/api', authenticate, quizRouter);
+app.use('/api', authenticate, flashcardRouter);
+app.use('/api', authenticate, jobsRouter);
+app.use('/api/billing', billingRouter);
 
 // --- Fallback handlers (must be registered after every route above) ---
 
