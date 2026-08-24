@@ -34,14 +34,20 @@ import authRouter from './routes/auth.router';
 import quizRouter from './routes/quiz';
 import flashcardRouter from './routes/flashcards';
 import gdprRouter from './routes/gdpr.router';
-import flashcardsRouter from './routes/flashcards';
-import quizRouter from './routes/quiz';
 import billingRouter, { webhookRouter } from './routes/billing';
+import bookmarksRouter from './routes/bookmarks';
+import searchRouter from './routes/search';
+import analyticsRouter from './routes/analytics';
+import notesRouter from './routes/notes';
+import adminRouter from './routes/admin';
+import notificationsRouter from './routes/notifications';
+import certificatesRouter from './routes/certificates';
+import jobsRouter from './routes/jobs';
 import { GenerateSchema } from './schemas/generate.schemas';
 import { RoadmapCreateSchema } from './schemas/roadmap.schemas';
 import { startContentCrons } from './services/contentCrons';
-app.use('/api/flashcards', flashcardsRouter);
-app.use('/api/quiz', quizRouter);
+import { initCronJobs } from './workers/cronJobs';
+
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
 
@@ -71,14 +77,10 @@ app.use(httpLogger);
 // M2: Prometheus request-count/latency instrumentation for every route below.
 app.use(metricsMiddleware);
 
-<<<<<<< HEAD
 // CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json()
 // consumes the stream — stripe.webhooks.constructEvent() needs the exact raw
 // bytes to recompute the HMAC signature. Once express.json() parses a body,
 // those raw bytes are gone and signature verification fails on every event.
-=======
-// CRITICAL: Stripe webhook MUST be parsed as raw Buffer before express.json consumes the stream
->>>>>>> origin/main
 app.use('/api/billing', express.raw({ type: 'application/json' }), webhookRouter);
 
 // M3: Limit request body to 1mb to prevent DoS via oversized payloads
@@ -200,13 +202,15 @@ app.use('/api/gdpr', gdprRouter);
 app.use('/api/bookmarks', authenticate, bookmarksRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/progress', authenticate, analyticsRouter);
-app.use('/api/quiz', authenticate, quizRouter);
 app.use('/api/notes', authenticate, notesRouter);
 app.use('/api/admin', authenticate, adminRouter);
 app.use('/api/notifications', authenticate, notificationsRouter);
-app.use('/api/flashcards', authenticate, flashcardsRouter);
 app.use('/api/certificates', certificatesRouter);
 app.use('/api/billing', billingRouter);
+// quizRouter and flashcardRouter are mounted at plain '/api' further below —
+// their internal route paths (e.g. '/topics/:topicId/quick-check',
+// '/flashcards/due') already include the resource name, so mounting them
+// under '/api/quiz' or '/api/flashcards' here would double up the prefix.
 
 // --- Authentication Endpoints ---
 

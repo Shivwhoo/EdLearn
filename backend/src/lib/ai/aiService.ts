@@ -1,8 +1,29 @@
 import { IAIServiceProvider, GenerateOptions } from './types';
 import { GroqProvider } from './providers/groqProvider';
 import { GeminiProvider } from './providers/geminiProvider';
-import { GroqProvider } from './providers/groqProvider';
-import { GeminiProvider } from './providers/geminiProvider';
+import { logger } from '../logger';
+import { z } from 'zod';
+
+const QuizSchema = z.object({
+  questions: z.array(z.object({
+    questionText: z.string(),
+    options: z.array(z.string()).length(4),
+    correctIndex: z.number().min(0).max(3),
+    explanation: z.string().optional()
+  })).length(3)
+});
+
+const FlashcardsSchema = z.object({
+  flashcards: z.array(z.object({
+    front: z.string(),
+    back: z.string()
+  })).min(5).max(10)
+});
+
+const EvaluationSchema = z.object({
+  isCorrect: z.boolean(),
+  explanation: z.string()
+});
 
 export class AIService implements IAIServiceProvider {
   private activeProvider: IAIServiceProvider | null = null;
