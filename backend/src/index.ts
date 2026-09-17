@@ -490,9 +490,16 @@ app.get('/api/topic', authenticate, async (req: express.Request, res: express.Re
       return res.status(400).json({ error: 'Missing required query parameter: dayId' });
     }
 
+    const userId = (req as AuthenticatedRequest).user!.id;
+
     const topics = await db.topic.findMany({
       where: {
         dayId: dayId as string,
+        day: {
+          roadmap: {
+            userId,
+          },
+        },
       },
       include: {
         citations: true,
