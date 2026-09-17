@@ -86,8 +86,11 @@ app.get('/metrics', metricsHandler);
 // frontend/next.config.ts.
 app.use('/api/tts/audio', express.static(path.join(__dirname, '../tts-audio')));
 
+import { rateLimit } from 'express-rate-limit';
+import { authLimiter, strictAuthLimiter, aiLimiter } from './middleware/rateLimiter';
+
 // Google OAuth Routes
-app.get('/api/auth/google', (req, res, next) => {
+app.get('/api/auth/google', authLimiter, (req, res, next) => {
   // Must match the exact condition in auth/google.ts that gates strategy
   // registration (clientID && clientSecret && callbackURL). This route used
   // to only check CLIENT_ID/CLIENT_SECRET, so a missing GOOGLE_CALLBACK_URL
@@ -191,7 +194,7 @@ app.use('/api/gdpr', gdprRouter);
 // --- Authentication Endpoints ---
 
 // Signup Route
-app.post('/api/auth/signup', async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/auth/signup', authLimiter, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { email, password, fullName } = req.body;
 
@@ -249,7 +252,7 @@ app.post('/api/auth/signup', async (req: express.Request, res: express.Response)
 });
 
 // Login Route
-app.post('/api/auth/login', async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/auth/login', authLimiter, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { email, password } = req.body;
 
@@ -444,7 +447,7 @@ app.patch('/api/profile', authenticate, async (req: express.Request, res: expres
 
 
 // Change Password Route
-app.post('/api/auth/change-password', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/auth/change-password', authenticate, strictAuthLimiter, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = (req as AuthenticatedRequest).user?.id;
@@ -587,7 +590,7 @@ app.get('/api/dashboard/summary', authenticate, async (req: express.Request, res
 });
 
 // 2. Generate Content (6 Modes + RAG)
-app.post('/api/generate', authenticate, validate(GenerateSchema), async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/generate', authenticate, aiLimiter, validate(GenerateSchema), async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { topic, mode, difficulty, url, dayId, forceRefresh } = req.body;
 
@@ -906,7 +909,7 @@ ${firstPassResponse}`;
 });
 
 // 3. Roadmap Creation
-app.post('/api/roadmap', authenticate, validate(RoadmapCreateSchema), async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/roadmap', authenticate, aiLimiter, validate(RoadmapCreateSchema), async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { goal, deadline, availableTime, difficulty, userId } = req.body;
 
@@ -1129,7 +1132,7 @@ app.post('/api/sso/handoff', authenticate, async (req: express.Request, res: exp
 // /api/generate, and Redis-caches a batch the same way /api/generate caches
 // notes, so repeat dashboard visits don't regenerate a batch every time.
 // Pass ?fresh=true to force a brand-new batch (used by "Load more").
-app.get('/api/facts', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+app.get('/api/facts', authenticate, aiLimiter, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const userId = (req as AuthenticatedRequest).user?.id;
     const forceFresh = req.query.fresh === 'true';
@@ -1331,7 +1334,7 @@ app.post('/api/tts/podcast', authenticate, async (req: express.Request, res: exp
 const VALID_INTENT_LABELS = ['learn', 'mentor', 'career', 'quiz'] as const;
 type IntentLabel = typeof VALID_INTENT_LABELS[number];
 
-app.post('/api/assistant/classify', authenticate, async (req: express.Request, res: express.Response): Promise<any> => {
+app.post('/api/assistant/classify', authenticate, aiLimiter, async (req: express.Request, res: express.Response): Promise<any> => {
   try {
     const { message } = req.body;
     if (!message || typeof message !== 'string' || !message.trim()) {

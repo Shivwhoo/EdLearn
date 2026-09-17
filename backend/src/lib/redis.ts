@@ -101,6 +101,13 @@ class RedisClient {
   public get connected(): boolean {
     return this.isConnected;
   }
+
+  /**
+   * Exposes the underlying raw redis client for plugins like rate-limit-redis.
+   */
+  public getClient(): ReturnType<typeof createClient> | null {
+    return this.client;
+  }
 }
 
 export const redisCache = new RedisClient();

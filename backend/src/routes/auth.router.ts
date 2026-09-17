@@ -42,6 +42,7 @@ import {
 } from '../lib/totp';
 import db from '../lib/db';
 import { redisCache } from '../lib/redis';
+import { authLimiter, strictAuthLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -68,7 +69,7 @@ async function issueRefreshToken(userId: string, family?: string): Promise<strin
 
 // ─── Signup ───────────────────────────────────────────────────────────────────
 
-router.post('/signup', validate(SignupSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/signup', authLimiter, validate(SignupSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { email, password, fullName } = req.body;
     const emailLower = email.toLowerCase().trim();
@@ -117,7 +118,7 @@ router.post('/signup', validate(SignupSchema), async (req: Request, res: Respons
 
 // ─── Login ───────────────────────────────────────────────────────────────────
 
-router.post('/login', validate(LoginSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/login', authLimiter, validate(LoginSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { email, password, totpToken } = req.body;
     const emailLower = email.toLowerCase().trim();
@@ -195,7 +196,7 @@ router.post('/login', validate(LoginSchema), async (req: Request, res: Response)
 
 // ─── Refresh token rotation ───────────────────────────────────────────────────
 
-router.post('/refresh', validate(RefreshTokenSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/refresh-token', authLimiter, validate(RefreshTokenSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { refreshToken } = req.body;
     const hashed = hashToken(refreshToken);
@@ -264,7 +265,7 @@ router.post('/logout', validate(RefreshTokenSchema), async (req: Request, res: R
 
 // ─── Forgot password (OTP) ────────────────────────────────────────────────────
 
-router.post('/forgot-password', validate(ForgotPasswordSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/forgot-password', authLimiter, validate(ForgotPasswordSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { email } = req.body;
     const emailLower = email.toLowerCase().trim();
@@ -309,7 +310,7 @@ router.post('/forgot-password', validate(ForgotPasswordSchema), async (req: Requ
 
 // ─── Reset password ───────────────────────────────────────────────────────────
 
-router.post('/reset-password', validate(ResetPasswordSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/reset-password', strictAuthLimiter, validate(ResetPasswordSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { email, otp, newPassword } = req.body;
     const emailLower = email.toLowerCase().trim();
@@ -364,6 +365,7 @@ router.post('/reset-password', validate(ResetPasswordSchema), async (req: Reques
 router.post(
   '/change-password',
   authenticate,
+  strictAuthLimiter,
   validate(ChangePasswordSchema),
   async (req: Request, res: Response): Promise<any> => {
     try {
@@ -527,7 +529,7 @@ router.post('/2fa/setup', authenticate, async (req: Request, res: Response): Pro
  * POST /api/auth/2fa/enable
  * Activates 2FA by verifying the user scanned the QR code correctly.
  */
-router.post('/2fa/enable', authenticate, validate(TotpEnableSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/2fa/enable', authenticate, strictAuthLimiter, validate(TotpEnableSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as AuthenticatedRequest).user!.id;
     const { token } = req.body;
@@ -562,7 +564,7 @@ router.post('/2fa/enable', authenticate, validate(TotpEnableSchema), async (req:
  * POST /api/auth/2fa/disable
  * Disables 2FA after verifying either a valid TOTP or backup code.
  */
-router.post('/2fa/disable', authenticate, validate(TotpDisableSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/2fa/disable', authenticate, strictAuthLimiter, validate(TotpDisableSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as AuthenticatedRequest).user!.id;
     const { token } = req.body;
@@ -594,7 +596,7 @@ router.post('/2fa/disable', authenticate, validate(TotpDisableSchema), async (re
  * POST /api/auth/2fa/verify
  * Standalone 2FA code check (used by frontend login flow after receiving requiresTwoFactor).
  */
-router.post('/2fa/verify', validate(TotpEnableSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/2fa/verify', strictAuthLimiter, validate(TotpEnableSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { token, email } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required.' });
