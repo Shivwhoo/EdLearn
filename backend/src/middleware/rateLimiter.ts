@@ -15,6 +15,13 @@ const getRedisStore = (prefix: string) => {
         // but rate-limit-redis passes them as rest arguments.
         return client.sendCommand(args as any);
       }
+
+      // If Redis is not connected during rate-limit-redis initialization,
+      // SCRIPT LOAD will throw and crash the server. Mock it here.
+      if (args[0] === 'SCRIPT' && args[1] === 'LOAD') {
+        return 'dummy_sha';
+      }
+
       // If Redis is not connected, fail the store call. 
       // express-rate-limit's passOnStoreError=true will catch this and allow the request.
       throw new Error('Redis is not connected');
