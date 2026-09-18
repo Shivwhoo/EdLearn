@@ -42,11 +42,10 @@ export default function Footer() {
               <div className="p-1.5 bg-blue-600 rounded-lg group-hover:scale-110 transition-transform">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-extrabold text-white tracking-tight">EdLearn</span>
+              <span className="text-xl font-extrabold text-white tracking-tight">EdMentor</span>
             </Link>
             <p className="text-sm leading-relaxed max-w-xs">
-              The all-in-one learning platform for curious minds. AI tutoring, quizzes, career
-              guidance, and mentor connections — learn smarter, faster, better.
+              We’re always looking for passionate and experienced mentors. Join us and inspire learners today!
             </p>
             <div className="flex items-center gap-3 pt-1">
               <a
@@ -68,10 +67,10 @@ export default function Footer() {
                 <MessageCircle className="h-4 w-4" />
               </a>
               <a
-                href="https://edlearn.app"
+                href="https://www.linkedin.com/company/theedmentor"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Website"
+                aria-label="LinkedIn"
                 className="p-2 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-lg transition-colors"
               >
                 <Globe className="h-4 w-4" />
@@ -79,27 +78,43 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Company */}
-          <nav aria-label="Company">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Company</h3>
-            <ul className="space-y-3 text-sm">
-              <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Careers</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Blog</Link></li>
-              <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
-            </ul>
-          </nav>
+          {/* Learn & Company */}
+          <div className="space-y-8">
+            <nav aria-label="Learn">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Learn</h3>
+              <ul className="space-y-3 text-sm">
+                <li><a href="https://theedmentor.com/courses" className="hover:text-white transition-colors">Courses</a></li>
+                <li><a href="https://theedmentor.com/events" className="hover:text-white transition-colors">Events</a></li>
+                <li><a href="https://theedmentor.com/blogs#" className="hover:text-white transition-colors">Scholarships</a></li>
+              </ul>
+            </nav>
+            <nav aria-label="Company">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Company</h3>
+              <ul className="space-y-3 text-sm">
+                <li><a href="https://theedmentor.com/about" className="hover:text-white transition-colors">About</a></li>
+                <li><a href="https://theedmentor.com/blogs" className="hover:text-white transition-colors">Blog</a></li>
+                <li><a href="https://theedmentor.com/contact" className="hover:text-white transition-colors">Contact</a></li>
+              </ul>
+            </nav>
+          </div>
 
-          {/* Support */}
-          <nav aria-label="Support">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Support</h3>
-            <ul className="space-y-3 text-sm">
-              <li><Link href="/contact" className="hover:text-white transition-colors">Help Center</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">FAQs</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Terms of Service</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-            </ul>
-          </nav>
+          {/* Support & Products */}
+          <div className="space-y-8">
+            <nav aria-label="Support">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Support</h3>
+              <ul className="space-y-3 text-sm">
+                <li><a href="https://theedmentor.com/privacy" className="hover:text-white transition-colors">Privacy</a></li>
+                <li><a href="https://theedmentor.com/terms" className="hover:text-white transition-colors">Terms</a></li>
+                <li><a href="mailto:help@theedmentor.com" className="hover:text-white transition-colors">Email</a></li>
+              </ul>
+            </nav>
+            <nav aria-label="Products">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Products</h3>
+              <ul className="space-y-3 text-sm">
+                <li><a href="https://edquiz.theedmentor.com/" className="hover:text-white transition-colors">EdQuiz</a></li>
+              </ul>
+            </nav>
+          </div>
 
           {/* Contact */}
           <div className="sm:col-span-2 lg:col-span-1 space-y-6">
@@ -108,19 +123,19 @@ export default function Footer() {
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
                   <Mail className="h-4 w-4 flex-shrink-0" />
-                  <a href="mailto:hello@edlearn.com" className="hover:text-white transition-colors">
-                    hello@edlearn.com
+                  <a href="mailto:help@theedmentor.com" className="hover:text-white transition-colors">
+                    help@theedmentor.com
                   </a>
                 </li>
                 <li className="flex items-center gap-2">
                   <Phone className="h-4 w-4 flex-shrink-0" />
-                  <a href="tel:+2348001234567" className="hover:text-white transition-colors">
-                    +234 800 123 4567
+                  <a href="tel:+919538672074" className="hover:text-white transition-colors">
+                    +91 9538672074
                   </a>
                 </li>
                 <li className="flex items-start gap-2">
                   <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                  <span>12 Freedom Way, Lekki, Lagos, Nigeria</span>
+                  <span>Innov8 Mantri 5th Floor Bellandur ORR, Bengaluru, Karnataka 560103</span>
                 </li>
               </ul>
             </div>
@@ -179,10 +194,10 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <p>&copy; 2026 EdLearn. All rights reserved.</p>
+          <p>&copy; 2026 EdMentor</p>
           <div className="flex items-center gap-6">
-            <Link href="#" className="hover:text-slate-300 transition-colors">Terms of Service</Link>
-            <Link href="#" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
+            <a href="https://theedmentor.com/terms" className="hover:text-slate-300 transition-colors">Terms of Service</a>
+            <a href="https://theedmentor.com/privacy" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
           </div>
         </div>
       </div>
