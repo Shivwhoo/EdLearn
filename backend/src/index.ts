@@ -823,7 +823,7 @@ Important Citation Instructions:
       systemPrompt: systemPrompt,
       jsonMode: true,
       temperature: 0.5,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     // Double-Pass Review (Second Pass)
@@ -850,7 +850,7 @@ ${firstPassResponse}`;
       systemPrompt: reviewSystemPrompt,
       jsonMode: true,
       temperature: 0.3,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     let parsedContent;
