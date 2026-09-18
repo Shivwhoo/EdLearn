@@ -56,7 +56,7 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
 console.log(`[CORS] Allowed origin(s): ${allowedOrigins.join(', ')}`);
 
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -1443,9 +1443,13 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  logger.fatal({ err }, 'Failed to start server');
-  captureException(err);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  startServer().catch((err) => {
+    logger.fatal({ err }, 'Failed to start server');
+    captureException(err);
+    process.exit(1);
+  });
+}
+
+export default app;
 // (content sections: news/media/books routers + crons wired above)
