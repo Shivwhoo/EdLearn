@@ -196,7 +196,7 @@ router.post('/login', authLimiter, validate(LoginSchema), async (req: Request, r
 
 // ─── Refresh token rotation ───────────────────────────────────────────────────
 
-router.post('/refresh-token', authLimiter, validate(RefreshTokenSchema), async (req: Request, res: Response): Promise<any> => {
+router.post('/refresh', authLimiter, validate(RefreshTokenSchema), async (req: Request, res: Response): Promise<any> => {
   try {
     const { refreshToken } = req.body;
     const hashed = hashToken(refreshToken);

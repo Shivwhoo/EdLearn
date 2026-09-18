@@ -126,6 +126,7 @@ vi.mock('../lib/redis', () => ({
     getCache: vi.fn().mockResolvedValue(null),
     setCache: vi.fn().mockResolvedValue('OK'),
     deleteCache: vi.fn().mockResolvedValue(1),
+    getClient: vi.fn().mockReturnValue(null),
   },
 }));
 
