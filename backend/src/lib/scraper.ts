@@ -19,10 +19,11 @@ const WIKI_HEADERS = {
  * Searches Wikipedia and returns the page text context.
  * H1 Fix: Fetches both pages in parallel with Promise.all (saves ~1.5s vs. serial)
  */
-async function searchWikipedia(query: string): Promise<ScrapedContext[]> {
+async function searchWikipedia(query: string, learningDomain?: string): Promise<ScrapedContext[]> {
   try {
+    const searchQuery = learningDomain ? `${learningDomain} ${query}` : query;
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      query
+      searchQuery
     )}&format=json&origin=*`;
     const searchResponse = await axios.get(searchUrl, WIKI_HEADERS);
     const searchResults = searchResponse.data.query?.search || [];
@@ -118,7 +119,7 @@ function isPrivateUrl(rawUrl: string): boolean {
 /**
  * High-level router to retrieve ground-truth context based on input params.
  */
-export async function getReferenceContext(query: string, url?: string): Promise<ScrapedContext[]> {
+export async function getReferenceContext(query: string, url?: string, learningDomain?: string): Promise<ScrapedContext[]> {
   if (url && url.startsWith('http')) {
     // SEC-3: Reject SSRF attempts targeting internal infrastructure
     if (isPrivateUrl(url)) {
@@ -127,5 +128,5 @@ export async function getReferenceContext(query: string, url?: string): Promise<
     const context = await scrapeUrl(url);
     return [context];
   }
-  return searchWikipedia(query);
+  return searchWikipedia(query, learningDomain);
 }

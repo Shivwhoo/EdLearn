@@ -93,6 +93,10 @@ export class GroqProvider implements IAIServiceProvider {
               waitMs += 500; // add 500 ms buffer
             }
             if (attempt < 3) {
+              if (waitMs > 4000) {
+                console.warn(`[Groq] Rate-limited on "${model}". Wait of ${(waitMs / 1000).toFixed(1)}s is too long, skipping to fallback...`);
+                break;
+              }
               console.warn(`[Groq] Rate-limited on "${model}". Waiting ${(waitMs / 1000).toFixed(1)}s before retry...`);
               await new Promise(r => setTimeout(r, waitMs));
             }

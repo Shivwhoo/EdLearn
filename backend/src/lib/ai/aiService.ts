@@ -1,4 +1,4 @@
-import { IAIServiceProvider, GenerateOptions } from './types';
+﻿import { IAIServiceProvider, GenerateOptions } from './types';
 import { GroqProvider } from './providers/groqProvider';
 import { GeminiProvider } from './providers/geminiProvider';
 import { z } from 'zod';
@@ -74,11 +74,36 @@ export class AIService implements IAIServiceProvider {
     return this.providerName;
   }
 
+  private extractJson(text: string): string {
+    const firstBrace = text.indexOf('{');
+    const firstBracket = text.indexOf('[');
+    let startIdx = -1;
+    if (firstBrace !== -1 && firstBracket !== -1) {
+      startIdx = Math.min(firstBrace, firstBracket);
+    } else {
+      startIdx = Math.max(firstBrace, firstBracket);
+    }
+
+    if (startIdx === -1) return text;
+
+    const lastBrace = text.lastIndexOf('}');
+    const lastBracket = text.lastIndexOf(']');
+    const endIdx = Math.max(lastBrace, lastBracket);
+
+    if (endIdx === -1 || endIdx < startIdx) return text;
+
+    return text.substring(startIdx, endIdx + 1);
+  }
+
   /**
    * Standard call to generate complete text responses.
    */
   async generate(prompt: string, options?: GenerateOptions): Promise<string> {
-    return this.getProvider().generate(prompt, options);
+    const response = await this.getProvider().generate(prompt, options);
+    if (options?.jsonMode) {
+      return this.extractJson(response);
+    }
+    return response;
   }
 
   /**
