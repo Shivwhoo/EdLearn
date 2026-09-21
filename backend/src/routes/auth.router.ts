@@ -50,7 +50,7 @@ const router = Router();
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
-async function issueRefreshToken(userId: string, family?: string): Promise<string> {
+export async function issueRefreshToken(userId: string, family?: string): Promise<string> {
   const raw = generateRefreshToken();
   const hashed = hashToken(raw);
   const tokenFamily = family ?? generateTokenFamily();

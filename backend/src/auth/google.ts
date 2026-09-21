@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { db } from '../lib/db';
 import { generateToken } from '../lib/auth';
+import { issueRefreshToken } from '../routes/auth.router';
 
 // Only register the Google strategy if all required env vars are present.
 // This prevents a hard crash at import time when the server starts without
@@ -65,6 +66,7 @@ if (clientID && clientSecret && callbackURL) {
 
                         // Generate JWT token
                         const token = generateToken({ id: user.id, email: user.email });
+                        const refreshToken = await issueRefreshToken(user.id);
                         console.log('🔑 Token generated for:', user.email);
 
                         // Return both user and token
@@ -75,6 +77,7 @@ if (clientID && clientSecret && callbackURL) {
                                 fullName: user.profile?.fullName || fullName,
                             },
                             token,
+                            refreshToken,
                         });
                     } catch (error: any) {
                         // Distinguish Prisma/DB failures from other exceptions during

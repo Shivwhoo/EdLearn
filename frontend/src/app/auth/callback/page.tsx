@@ -12,6 +12,7 @@ function AuthCallbackContent() {
     useEffect(() => {
         const handleCallback = async () => {
             const token = searchParams.get('token');
+            const refreshToken = searchParams.get('refreshToken');
             const error = searchParams.get('error');
 
             console.log('🔑 Callback - Token:', token ? 'Yes' : 'No');
@@ -30,7 +31,7 @@ function AuthCallbackContent() {
 
             try {
                 // Save token
-                setToken(token);
+                setToken(token, refreshToken || undefined);
 
                 // Fetch logged-in user
                 await useWorkspaceStore.getState().fetchCurrentUser();

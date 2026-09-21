@@ -53,6 +53,11 @@ function getInitialToken(): string | null {
   return token;
 }
 
+function getInitialRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('edlearn_refresh_token');
+}
+
 function getInitialUser(): any | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem('edlearn_user');
@@ -79,7 +84,10 @@ function getInitialCompletedDays(): Set<string> {
 export interface WorkspaceState {
   // Auth State
 
+  // Auth State
+
   token: string | null;
+  refreshToken: string | null;
   user: any | null;
 
   // Workspace state
@@ -122,9 +130,9 @@ export interface WorkspaceState {
   simplifierAnswers: { [key: number]: number };
 
   // Actions
-  login: (token: string, user: UserSession) => void;
+  login: (token: string, refreshToken: string, user: UserSession) => void;
   logout: () => void;
-  setToken: (token: string) => void;
+  setToken: (token: string, refreshToken?: string) => void;
   setUser: (user: any) => void;
   fetchCurrentUser: () => Promise<void>;
   setUserProfile: (profile: UserProfile) => void;
@@ -165,6 +173,7 @@ export interface WorkspaceState {
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   token: getInitialToken(),
+  refreshToken: getInitialRefreshToken(),
   user: getInitialUser(),
   userProfile: null,
   roadmap: null,
@@ -191,24 +200,27 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   badges: [],
   newBadge: null,
 
-  login: (token, user) => {
+  login: (token, refreshToken, user) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('edlearn_token', token);
+      localStorage.setItem('edlearn_refresh_token', refreshToken);
       localStorage.setItem('edlearn_user', JSON.stringify(user));
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
-    set({ token, user });
+    set({ token, refreshToken, user });
   },
 
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('edlearn_token');
+      localStorage.removeItem('edlearn_refresh_token');
       localStorage.removeItem('edlearn_user');
       localStorage.removeItem('edlearn_completed_days');
       delete axios.defaults.headers.common['Authorization'];
     }
     set({
       token: null,
+      refreshToken: null,
       user: null,
       roadmap: null,
       currentDay: null,
@@ -235,12 +247,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     });
   },
 
-  setToken: (token) => {
+  setToken: (token, refreshToken) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('edlearn_token', token);
+      if (refreshToken) {
+        localStorage.setItem('edlearn_refresh_token', refreshToken);
+      }
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
-    set({ token });
+    set((state) => ({ token, refreshToken: refreshToken || state.refreshToken }));
   },
 
   setUser: (user) => {
@@ -302,10 +317,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('edlearn_token');
+          localStorage.removeItem('edlearn_refresh_token');
           localStorage.removeItem('edlearn_user');
           delete axios.defaults.headers.common['Authorization'];
         }
-        set({ token: null, user: null });
+        set({ token: null, refreshToken: null, user: null });
       } else {
         console.error('Failed to fetch user:', error);
       }

@@ -41,7 +41,7 @@ export default function LoginPage() {
 
       if (response.data?.success) {
         // Authenticate
-        setToken(response.data.token);
+        setToken(response.data.token, response.data.refreshToken);
         await fetchCurrentUser();
         //setUser(response.data.user);
         // Next.js will auto-redirect in useEffect

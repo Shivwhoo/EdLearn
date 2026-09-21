@@ -48,7 +48,7 @@ export default function SignupPage() {
 
       if (response.data?.success) {
         // Authenticate
-        setToken(response.data.token);
+        setToken(response.data.token, response.data.refreshToken);
         setUser(response.data.user);
         await fetchCurrentUser();
         // Next.js will auto-redirect in useEffect

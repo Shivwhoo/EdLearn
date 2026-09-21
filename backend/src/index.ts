@@ -151,10 +151,10 @@ app.get('/api/auth/google/callback', (req, res, next) => {
     }
 
     try {
-      const { token } = user;
+      const { token, refreshToken } = user;
       console.log('✅ Token generated:', token ? 'Yes' : 'No');
 
-      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}`;
+      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&refreshToken=${refreshToken}`;
       console.log('🔀 Redirecting to:', redirectUrl);
 
       res.redirect(redirectUrl);
@@ -630,6 +630,21 @@ app.post('/api/generate', authenticate, aiLimiter, validate(GenerateSchema), asy
 
     console.log("Resolved mode =", modeNumber);
 
+    let learningDomain = '';
+    if (dayId) {
+      const day = await db.day.findUnique({
+        where: { id: dayId },
+        include: { roadmap: true }
+      });
+      const userId = (req as AuthenticatedRequest).user?.id;
+      if (day) {
+        if (day.roadmap.userId !== userId) {
+          return res.status(403).json({ error: 'Forbidden. Day does not exist or access denied.' });
+        }
+        learningDomain = day.roadmap.title;
+      }
+    }
+
     // ----------------------------------------------------------------------
     // Mode 7 — Duo Podcast (conversational two-host script).
     //
@@ -641,7 +656,7 @@ app.post('/api/generate', authenticate, aiLimiter, validate(GenerateSchema), asy
     // ever produced, which is why the Duo Podcast never appeared.
     // ----------------------------------------------------------------------
     if (modeNumber === 7) {
-      const podcastCacheKey = `podcast:${String(topic).toLowerCase().trim()}:${String(difficulty).toLowerCase().trim()}`;
+      const podcastCacheKey = `podcast:${dayId ? dayId + ':' : ''}${String(topic).toLowerCase().trim()}:${String(difficulty).toLowerCase().trim()}`;
 
       let podcastData: any = null;
       const cachedPodcast = forceRefresh ? null : await redisCache.getCache(podcastCacheKey);
@@ -650,7 +665,7 @@ app.post('/api/generate', authenticate, aiLimiter, validate(GenerateSchema), asy
       }
 
       if (!podcastData) {
-        const podcastContext = await getReferenceContext(topic, url);
+        const podcastContext = await getReferenceContext(topic, url, learningDomain);
         const cfg = getPedagogicalModeConfig(7, topic, difficulty, podcastContext);
 
         const rawScriptResponse = await aiService.generate(cfg.userPrompt, {
@@ -731,7 +746,7 @@ app.post('/api/generate', authenticate, aiLimiter, validate(GenerateSchema), asy
     }
 
     // M2: Cache key must include mode — Socratic vs. Accelerator notes are different content
-    const cacheKey = `notes:${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
+    const cacheKey = `notes:${dayId ? dayId + ':' : ''}${topic.toLowerCase().trim()}:${difficulty.toLowerCase().trim()}:${modeNumber}`;
     const cachedNotes = forceRefresh ? null : await redisCache.getCache(cacheKey);
 
     if (cachedNotes) {
@@ -777,7 +792,7 @@ app.post('/api/generate', authenticate, aiLimiter, validate(GenerateSchema), asy
     }
 
     // Perform RAG scrape
-    const contextList = await getReferenceContext(topic, url);
+    const contextList = await getReferenceContext(topic, url, learningDomain);
 
     // Format RAG contexts into clean numbered blocks
     const contextStringForPrompt = contextList.length > 0
@@ -816,7 +831,14 @@ Important Citation Instructions:
 - For every fact or statement you write, you MUST cite which source it came from using the index suffix format like this: "[1]" (referring to Source 1) or "[2]" (referring to Source 2).
 - Ensure all properties in the JSON structure are filled out. Do not wrap output in markdown code blocks. Return only valid JSON.`;
 
-    const userPrompt = `Generate premium, comprehensive educational study notes for "${topic}" at the "${difficulty}" level. If it involves programming, include detailed code examples.`;
+    const userPrompt = `Generate premium, comprehensive educational study notes for "${topic}".
+${learningDomain ? `\nLearning context:\n${learningDomain}\n` : ''}
+Difficulty:
+${difficulty}
+
+${learningDomain ? `Interpret the topic strictly within the learning context above.
+If the topic is ambiguous, use the learning context to determine
+its intended meaning.\n\n` : ''}If it involves programming, include detailed code examples.`;
 
     // Generate output (First Pass) — H2: cap maxTokens to prevent Groq JSON validation failures
     const firstPassResponse = await aiService.generate(userPrompt, {
